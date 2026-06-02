@@ -18,24 +18,27 @@ RU_MONTHS = ["января", "февраля", "марта", "апреля", "м
 CSS = """
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { background: #DCE4EF; font-family: 'Golos Text', sans-serif; font-size: 15px; line-height: 1.5; min-height: 100vh; display: flex; color: #1a1a1a; }
-.sidebar { width: 220px; flex-shrink: 0; background: #fff; padding: 24px 0; display: flex; flex-direction: column; position: fixed; top: 0; left: 0; bottom: 0; overflow-y: auto; }
-.mode-toggle { display: flex; gap: 4px; margin: 0 16px 16px; background: #f0f0ee; border-radius: 8px; padding: 3px; }
+.sidebar { width: 220px; flex-shrink: 0; background: #fff; padding: 24px 0; display: flex; flex-direction: column; position: fixed; top: 16px; left: 16px; bottom: 16px; border-radius: 22px; overflow-y: auto; }
+.mode-toggle { display: flex; gap: 4px; margin: 0 16px 16px; background: #DCE4EF; border-radius: 8px; padding: 3px; }
 .mode-btn { flex: 1; text-align: center; font-size: 12px; font-weight: 600; padding: 6px 4px; border-radius: 6px; cursor: pointer; color: #999; border: none; background: transparent; font-family: inherit; transition: all .12s; }
 .mode-btn.active { background: #fff; color: #1a1a1a; }
 .sidebar-title { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #bbb; padding: 0 20px; margin-bottom: 12px; }
 .nav-item { padding: 10px 20px; cursor: pointer; transition: background .12s; border-left: 2px solid transparent; }
 .nav-item:hover { background: #fafafa; }
-.nav-item.active { border-left-color: #1a1a1a; background: #DCE4EF; }
+.nav-item.active { border-left-color: transparent; background: #199AF0; }
+.nav-item.active .nav-main { color: #fff; }
+.nav-item.active .nav-sub { color: rgba(255,255,255,.82); }
 .nav-main { font-size: 14px; font-weight: 600; color: #1a1a1a; }
 .nav-item:not(.active) .nav-main { color: #888; font-weight: 500; }
 .nav-sub { font-size: 12px; color: #bbb; margin-top: 1px; }
 .nav-empty { padding: 10px 20px; color: #bbb; font-size: 13px; }
 .nav-divider { height: 1px; background: #cdd6e4; margin: 12px 16px 10px; }
-.main { margin-left: 220px; flex: 1; padding: 40px 40px 80px; max-width: 800px; }
+.main { margin-left: 252px; flex: 1; padding: 40px 40px 80px; max-width: 800px; }
 .session-header { margin-bottom: 28px; }
 .session-meta { font-size: 12px; color: #999; margin-bottom: 6px; letter-spacing: 0.04em; }
 h1 { font-size: 60px; font-weight: 600; color: #1a1a1a; letter-spacing: -0.02em; line-height: 1.05; }
 .crown-h1 { font-size: 34px; vertical-align: middle; }
+.status-badge { display: inline-block; margin-top: 14px; font-size: 13px; font-weight: 600; color: #199AF0; background: #EAF4FE; padding: 6px 14px; border-radius: 999px; }
 .card-date { font-size: 12px; font-weight: 600; color: #999; margin: 22px 0 8px 2px; }
 .card-date:first-child { margin-top: 0; }
 .project { background: #fff; border-radius: 20px; margin-bottom: 14px; overflow: hidden; }
@@ -67,12 +70,12 @@ h1 { font-size: 60px; font-weight: 600; color: #1a1a1a; letter-spacing: -0.02em;
 .reset-btn:hover { color: #555; border-color: #bbb; }
 @media (max-width: 640px) {
   body { flex-direction: column; }
-  .sidebar { width: 100%; position: static; padding: 12px 0; }
+  .sidebar { width: 100%; position: static; padding: 12px 0; border-radius: 0; }
   .mode-toggle { margin: 0 12px 10px; }
   .sidebar-title { display: none; }
   #nav-list { display: flex; overflow-x: auto; gap: 4px; padding: 0 8px; }
   .nav-item { flex-shrink: 0; border-left: none; border-bottom: 2px solid transparent; padding: 6px 12px; border-radius: 8px; }
-  .nav-item.active { border-bottom-color: #1a1a1a; background: #DCE4EF; }
+  .nav-item.active { border-bottom-color: transparent; background: #199AF0; }
   .main { margin-left: 0; padding: 24px 16px 80px; }
   h1 { font-size: 38px; }
 }
@@ -98,6 +101,17 @@ const designerNames = Object.keys(DIDX).sort((a,b)=>{ const d=meetingsOf(b)-meet
 const maxMeetings = designerNames.length ? Math.max(...designerNames.map(meetingsOf)) : 0;
 // корона тем, кто ходил больше всех (если у лидера хотя бы 2 встречи)
 function isTop(n){ return maxMeetings>=2 && meetingsOf(n)===maxMeetings; }
+// шуточный статус, виден при открытии дизайнера
+function designerStatus(n){
+  if(isTop(n)) return '👑 Король ревью — приходит чаще всех';
+  if(meetingsOf(n)===1) return '✨ Редкий гость — каждый раз как праздник';
+  const tags={ux:0,dev:0,discuss:0};
+  DIDX[n].forEach(e=> e.project.tasks.forEach(t=>{ if(tags[t.tag]!=null) tags[t.tag]++; }));
+  const top=Object.keys(tags).sort((a,b)=>tags[b]-tags[a])[0];
+  if(top==='discuss') return '🗣 Любит всё обсудить';
+  if(top==='dev') return '🛠 Дружит с разработкой';
+  return '🎨 Пиксель-перфекционист';
+}
 
 let mode='designers', sIdx=0, dIdx=0;
 const elNav=document.getElementById('nav-list');
@@ -128,17 +142,13 @@ function renderNav(){
       <div class="nav-sub">${s.designersCount} ${plural(s.designersCount,'дизайнер','дизайнера','дизайнеров')}</div></div>`).join('');
   } else {
     if(!designerNames.length){ elNav.innerHTML='<div class="nav-empty">Нет дизайнеров</div>'; return; }
-    const parts=[]; let prevMulti=null;
-    designerNames.forEach((n,i)=>{
+    elNav.innerHTML = designerNames.map((n,i)=>{
       const mc=meetingsOf(n);
-      if(prevMulti===true && mc===1) parts.push('<div class="nav-divider"></div>');
-      prevMulti = mc>1;
       const crown = isTop(n) ? ' <span class="crown">👑</span>' : '';
-      parts.push(`<div class="nav-item ${i===dIdx?'active':''}" onclick="selectDesigner(${i})">
+      return `<div class="nav-item ${i===dIdx?'active':''}" onclick="selectDesigner(${i})">
         <div class="nav-main">${esc(n)}${crown}</div>
-        <div class="nav-sub">${mc} ${plural(mc,'встреча','встречи','встреч')}</div></div>`);
-    });
-    elNav.innerHTML = parts.join('');
+        <div class="nav-sub">${mc} ${plural(mc,'встреча','встречи','встреч')}</div></div>`;
+    }).join('');
   }
 }
 function renderMain(){
@@ -151,7 +161,7 @@ function renderMain(){
     const n=designerNames[dIdx];
     if(!n){ elMain.innerHTML=emptyHTML(); return; }
     const crownH = isTop(n) ? ' <span class="crown-h1">👑</span>' : '';
-    elMain.innerHTML = `<div class="session-header"><h1>${esc(n)}${crownH}</h1></div>`
+    elMain.innerHTML = `<div class="session-header"><h1>${esc(n)}${crownH}</h1><div class="status-badge">${designerStatus(n)}</div></div>`
       + DIDX[n].map(x=>cardHTML(x.project,x.dateLabel)).join('');
   }
 }
