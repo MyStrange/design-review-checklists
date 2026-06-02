@@ -237,11 +237,13 @@ def _to_data(sessions):
         projects = []
         names = set()
         for di, d in enumerate(s.get("designers", [])):
-            names.add(d.get("name", ""))
+            raw_name = d.get("name") or "Не указан"
+            author = config.NAME_MAP.get(raw_name, raw_name)
+            names.add(author)
             for pi, p in enumerate(d.get("projects", [])):
                 projects.append({
                     "id": "%s-%d-%d" % (sid, di, pi),
-                    "author": d.get("name") or "Не указан",
+                    "author": author,
                     "title": p.get("name") or "Без названия",
                     "tasks": [
                         {"id": it.get("id", ""), "text": it.get("text", ""),
