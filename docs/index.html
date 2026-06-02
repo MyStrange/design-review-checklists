@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Дизайн-ревью — чек-листы</title>
+<style>
+:root{--bg:#0f1115;--card:#181b22;--line:#262b35;--fg:#e7e9ee;--muted:#9aa3b2;--accent:#5b8cff;--done:#5a6472}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.5 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--fg)}
+.top{padding:20px 24px;border-bottom:1px solid var(--line)}
+.top h1{margin:0;font-size:20px}
+.hint{margin:4px 0 0;color:var(--muted);font-size:13px}
+#app{padding:18px 24px;max-width:920px;margin:0 auto}
+#designers{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px}
+#designers button{background:var(--card);color:var(--fg);border:1px solid var(--line);padding:8px 14px;border-radius:999px;cursor:pointer;font-size:14px}
+#designers button.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.dates{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px}
+.dates button{background:transparent;color:var(--muted);border:1px solid var(--line);padding:6px 12px;border-radius:8px;cursor:pointer;font-size:13px}
+.dates button.active{color:var(--fg);border-color:var(--accent)}
+.project{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px}
+.project h3{margin:0 0 10px;font-size:16px}
+ul.items{list-style:none;margin:0;padding:0}
+.item{padding:7px 0;border-top:1px solid var(--line)}
+.item:first-child{border-top:none}
+.item label{display:flex;align-items:flex-start;gap:10px;cursor:pointer}
+.item input{margin-top:3px;width:17px;height:17px;accent-color:var(--accent);flex:none}
+.item.done .txt{text-decoration:line-through;color:var(--done)}
+.empty{color:var(--muted);margin:0;font-size:13px}
+.placeholder{color:var(--muted);text-align:center;padding:60px 20px}
+</style>
+</head>
+<body>
+<header class="top"><h1>Дизайн-ревью — чек-листы</h1><p class="hint">Отметки галочками сохраняются только в этом браузере (на этом устройстве).</p></header>
+<div id="app"><nav id="designers"><button data-target="d0">Аня</button><button data-target="d1">Миша</button></nav><main><section class="designer" id="d0" hidden><div class="dates"><button data-target="d0-t0">02.06.2026 · вт · ч.1</button><button data-target="d0-t1">28.05.2026 · чт · ч.2</button></div><div class="date-panel" id="d0-t0" hidden><div class="project"><h3>Мобильный банк — перевод по номеру</h3><ul class="items"><li class="item"><label><input type="checkbox" data-id="e8ec22266ea5"><span class="txt">Сделать кнопку «Перевести» залипающей внизу экрана</span></label></li><li class="item"><label><input type="checkbox" data-id="26afd7e8b943"><span class="txt">Увеличить шрифт суммы — сейчас тяжело читать</span></label></li><li class="item"><label><input type="checkbox" data-id="a2bd379dedc2"><span class="txt">Убрать серый плейсхолдер «0 ₽», он путает</span></label></li></ul></div><div class="project"><h3>Лендинг «Кешбэк»</h3><ul class="items"><li class="item"><label><input type="checkbox" data-id="5f77621ca8e4"><span class="txt">Сократить высоту первого экрана, чтобы оффер был виден без скролла</span></label></li></ul></div></div><div class="date-panel" id="d0-t1" hidden><div class="project"><h3>Мобильный банк — перевод по номеру</h3><ul class="items"><li class="item"><label><input type="checkbox" data-id="6c4f47b53f58"><span class="txt">Добавить экран подтверждения перед отправкой перевода</span></label></li><li class="item"><label><input type="checkbox" data-id="ea0f1434b493"><span class="txt">Показывать комиссию до подтверждения</span></label></li></ul></div></div></section><section class="designer" id="d1" hidden><div class="dates"><button data-target="d1-t0">02.06.2026 · вт · ч.1</button></div><div class="date-panel" id="d1-t0" hidden><div class="project"><h3>Дашборд «Пульс»</h3><ul class="items"><li class="item"><label><input type="checkbox" data-id="079d6fa8804c"><span class="txt">Разнести палитру графиков, чтобы линии различались</span></label></li><li class="item"><label><input type="checkbox" data-id="9a1f6a25508b"><span class="txt">Добавить подписи к осям</span></label></li><li class="item"><label><input type="checkbox" data-id="70ce4541a305"><span class="txt">Нарисовать пустое состояние, когда данных нет</span></label></li></ul></div></div></section></main></div>
+<script>
+(function(){
+  var KEY='dr_checked_v1';
+  function load(){try{return new Set(JSON.parse(localStorage.getItem(KEY)||'[]'))}catch(e){return new Set()}}
+  function save(s){try{localStorage.setItem(KEY,JSON.stringify(Array.from(s)))}catch(e){}}
+  var checked=load();
+  document.querySelectorAll('input[type=checkbox][data-id]').forEach(function(cb){
+    var id=cb.getAttribute('data-id');
+    if(checked.has(id)){cb.checked=true;cb.closest('.item').classList.add('done');}
+    cb.addEventListener('change',function(){
+      var li=cb.closest('.item');
+      if(cb.checked){checked.add(id);li.classList.add('done');}
+      else{checked.delete(id);li.classList.remove('done');}
+      save(checked);
+    });
+  });
+  function selectDate(id){
+    var panel=document.getElementById(id); if(!panel)return;
+    var sec=panel.closest('.designer');
+    sec.querySelectorAll('.date-panel').forEach(function(p){p.hidden=(p.id!==id);});
+    sec.querySelectorAll('.dates button').forEach(function(b){b.classList.toggle('active',b.getAttribute('data-target')===id);});
+  }
+  function selectDesigner(id){
+    document.querySelectorAll('.designer').forEach(function(s){s.hidden=(s.id!==id);});
+    document.querySelectorAll('#designers button').forEach(function(b){b.classList.toggle('active',b.getAttribute('data-target')===id);});
+    var sec=document.getElementById(id);
+    var first=sec&&sec.querySelector('.dates button');
+    if(first)selectDate(first.getAttribute('data-target'));
+  }
+  document.querySelectorAll('#designers button').forEach(function(b){b.onclick=function(){selectDesigner(b.getAttribute('data-target'));};});
+  document.querySelectorAll('.dates button').forEach(function(b){b.onclick=function(){selectDate(b.getAttribute('data-target'));};});
+  var firstD=document.querySelector('#designers button');
+  if(firstD)selectDesigner(firstD.getAttribute('data-target'));
+})();
+</script>
+</body>
+</html>

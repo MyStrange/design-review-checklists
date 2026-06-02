@@ -1,0 +1,47 @@
+name: Sync design-review checklists
+
+# Запускается по расписанию во вторник и четверг (дни ревью), днём и вечером,
+# а также вручную кнопкой "Run workflow".
+on:
+  schedule:
+    # каждый час с 09:00 до 20:00 UTC (= 12:00–23:00 МСК) по вторникам (2) и четвергам (4)
+    - cron: "0 9-20 * * 2,4"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Забрать почту, разобрать, собрать страницу
+        env:
+          YANDEX_USER: ${{ secrets.YANDEX_USER }}
+          YANDEX_APP_PASSWORD: ${{ secrets.YANDEX_APP_PASSWORD }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          # необязательные переопределения:
+          # GEMINI_MODEL, LLM_PROVIDER, REVIEW_SENDER, SUBJECT_MUST_CONTAIN
+        run: python -m src.main
+
+      - name: Закоммитить изменения
+        run: |
+          git config user.name "checklists-bot"
+          git config user.email "checklists-bot@users.noreply.github.com"
+          git add data/checklists.json docs/
+          if git diff --cached --quiet; then
+            echo "Изменений нет."
+          else
+            git commit -m "Обновление чек-листов ($(date -u +%Y-%m-%d_%H:%M)Z)"
+            git push
+          fi
