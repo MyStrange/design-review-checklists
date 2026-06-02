@@ -17,33 +17,35 @@ RU_MONTHS = ["января", "февраля", "марта", "апреля", "м
 
 CSS = """
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: #f5f5f3; font-family: 'Golos Text', sans-serif; font-size: 15px; line-height: 1.5; min-height: 100vh; display: flex; color: #1a1a1a; }
-.sidebar { width: 220px; flex-shrink: 0; background: #fff; border-right: 1px solid #e8e8e8; padding: 24px 0; display: flex; flex-direction: column; position: fixed; top: 0; left: 0; bottom: 0; overflow-y: auto; }
+body { background: #DCE4EF; font-family: 'Golos Text', sans-serif; font-size: 15px; line-height: 1.5; min-height: 100vh; display: flex; color: #1a1a1a; }
+.sidebar { width: 220px; flex-shrink: 0; background: #fff; padding: 24px 0; display: flex; flex-direction: column; position: fixed; top: 0; left: 0; bottom: 0; overflow-y: auto; }
 .mode-toggle { display: flex; gap: 4px; margin: 0 16px 16px; background: #f0f0ee; border-radius: 8px; padding: 3px; }
 .mode-btn { flex: 1; text-align: center; font-size: 12px; font-weight: 600; padding: 6px 4px; border-radius: 6px; cursor: pointer; color: #999; border: none; background: transparent; font-family: inherit; transition: all .12s; }
-.mode-btn.active { background: #fff; color: #1a1a1a; box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+.mode-btn.active { background: #fff; color: #1a1a1a; }
 .sidebar-title { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #bbb; padding: 0 20px; margin-bottom: 12px; }
 .nav-item { padding: 10px 20px; cursor: pointer; transition: background .12s; border-left: 2px solid transparent; }
 .nav-item:hover { background: #fafafa; }
-.nav-item.active { border-left-color: #1a1a1a; background: #f5f5f3; }
+.nav-item.active { border-left-color: #1a1a1a; background: #DCE4EF; }
 .nav-main { font-size: 14px; font-weight: 600; color: #1a1a1a; }
 .nav-item:not(.active) .nav-main { color: #888; font-weight: 500; }
 .nav-sub { font-size: 12px; color: #bbb; margin-top: 1px; }
 .nav-empty { padding: 10px 20px; color: #bbb; font-size: 13px; }
+.nav-divider { height: 1px; background: #cdd6e4; margin: 12px 16px 10px; }
 .main { margin-left: 220px; flex: 1; padding: 40px 40px 80px; max-width: 800px; }
 .session-header { margin-bottom: 28px; }
 .session-meta { font-size: 12px; color: #999; margin-bottom: 6px; letter-spacing: 0.04em; }
-h1 { font-size: 22px; font-weight: 600; color: #1a1a1a; }
+h1 { font-size: 60px; font-weight: 600; color: #1a1a1a; letter-spacing: -0.02em; line-height: 1.05; }
+.crown-h1 { font-size: 34px; vertical-align: middle; }
 .card-date { font-size: 12px; font-weight: 600; color: #999; margin: 22px 0 8px 2px; }
 .card-date:first-child { margin-top: 0; }
-.project { background: #fff; border-radius: 12px; margin-bottom: 12px; overflow: hidden; border: 1px solid #e8e8e8; }
+.project { background: #fff; border-radius: 20px; margin-bottom: 14px; overflow: hidden; }
 .project-header { padding: 18px 20px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; gap: 12px; }
 .project-header:hover { background: #fafafa; }
 .author { font-size: 15px; font-weight: 600; color: #1a1a1a; }
 .project-name { font-size: 13px; color: #999; margin-top: 1px; }
 .project-right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
 .count { font-size: 13px; color: #bbb; font-weight: 500; }
-.count.done { color: #3ecf8e; }
+.count.done { color: #199AF0; }
 .chevron { color: #ccc; font-size: 11px; transition: transform 0.2s; }
 .project.collapsed .chevron { transform: rotate(-90deg); }
 .project.collapsed .tasks { display: none; }
@@ -52,8 +54,8 @@ h1 { font-size: 22px; font-weight: 600; color: #1a1a1a; }
 .task:last-child { border-bottom: none; }
 .task:hover { background: #fafafa; }
 .checkbox { width: 17px; height: 17px; border-radius: 4px; border: 1.5px solid #d0d0d0; flex-shrink: 0; margin-top: 2px; display: flex; align-items: center; justify-content: center; transition: all .15s; background: #fff; }
-.task.checked .checkbox { background: #3ecf8e; border-color: #3ecf8e; }
-.task.checked .checkbox::after { content: '✓'; font-size: 10px; color: #fff; font-weight: 700; }
+.task.checked .checkbox { background: #199AF0; border-color: #199AF0; }
+.task.checked .checkbox::after { content: ''; width: 4px; height: 8px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); margin-top: -2px; }
 .task-text { font-size: 14px; color: #333; flex: 1; padding-top: 1px; }
 .task.checked .task-text { color: #bbb; text-decoration: line-through; text-decoration-color: #ccc; }
 .tag { display: inline-block; font-size: 10px; font-weight: 600; letter-spacing: 0.05em; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; margin-left: 6px; vertical-align: middle; position: relative; top: -1px; }
@@ -65,13 +67,14 @@ h1 { font-size: 22px; font-weight: 600; color: #1a1a1a; }
 .reset-btn:hover { color: #555; border-color: #bbb; }
 @media (max-width: 640px) {
   body { flex-direction: column; }
-  .sidebar { width: 100%; position: static; border-right: none; border-bottom: 1px solid #e8e8e8; padding: 12px 0; }
+  .sidebar { width: 100%; position: static; padding: 12px 0; }
   .mode-toggle { margin: 0 12px 10px; }
   .sidebar-title { display: none; }
   #nav-list { display: flex; overflow-x: auto; gap: 4px; padding: 0 8px; }
   .nav-item { flex-shrink: 0; border-left: none; border-bottom: 2px solid transparent; padding: 6px 12px; border-radius: 8px; }
-  .nav-item.active { border-bottom-color: #1a1a1a; background: #f5f5f3; }
+  .nav-item.active { border-bottom-color: #1a1a1a; background: #DCE4EF; }
   .main { margin-left: 0; padding: 24px 16px 80px; }
+  h1 { font-size: 38px; }
 }
 """
 
@@ -88,10 +91,15 @@ function plural(n,a,b,c){ const m=n%100, d=n%10; if(m>=11&&m<=14) return c; if(d
 const projById = {};
 DATA.sessions.forEach(s=> s.projects.forEach(p=>{ projById[p.id]=p; }));
 const DIDX = {};
-DATA.sessions.forEach(s=> s.projects.forEach(p=>{ (DIDX[p.author]=DIDX[p.author]||[]).push({ dateLabel:s.dateLabel, project:p }); }));
-const designerNames = Object.keys(DIDX).sort((a,b)=> a.localeCompare(b,'ru'));
+DATA.sessions.forEach(s=> s.projects.forEach(p=>{ (DIDX[p.author]=DIDX[p.author]||[]).push({ dateLabel:s.dateLabel, sid:s.id, project:p }); }));
+function meetingsOf(n){ const seen={}; DIDX[n].forEach(e=>{ seen[e.sid]=1; }); return Object.keys(seen).length; }
+// сортируем по активности: кто чаще приходил — выше; разово заходившие опускаются вниз
+const designerNames = Object.keys(DIDX).sort((a,b)=>{ const d=meetingsOf(b)-meetingsOf(a); return d!==0 ? d : a.localeCompare(b,'ru'); });
+const maxMeetings = designerNames.length ? Math.max(...designerNames.map(meetingsOf)) : 0;
+// корона тем, кто ходил больше всех (если у лидера хотя бы 2 встречи)
+function isTop(n){ return maxMeetings>=2 && meetingsOf(n)===maxMeetings; }
 
-let mode='meetings', sIdx=0, dIdx=0;
+let mode='designers', sIdx=0, dIdx=0;
 const elNav=document.getElementById('nav-list');
 const elMain=document.getElementById('main');
 
@@ -120,12 +128,17 @@ function renderNav(){
       <div class="nav-sub">${s.designersCount} ${plural(s.designersCount,'дизайнер','дизайнера','дизайнеров')}</div></div>`).join('');
   } else {
     if(!designerNames.length){ elNav.innerHTML='<div class="nav-empty">Нет дизайнеров</div>'; return; }
-    elNav.innerHTML = designerNames.map((n,i)=>{
-      const e=DIDX[n]; const tot=e.reduce((a,x)=>a+x.project.tasks.length,0);
-      return `<div class="nav-item ${i===dIdx?'active':''}" onclick="selectDesigner(${i})">
-        <div class="nav-main">${esc(n)}</div>
-        <div class="nav-sub">${e.length} ${plural(e.length,'встреча','встречи','встреч')} · ${tot} ${plural(tot,'задача','задачи','задач')}</div></div>`;
-    }).join('');
+    const parts=[]; let prevMulti=null;
+    designerNames.forEach((n,i)=>{
+      const mc=meetingsOf(n);
+      if(prevMulti===true && mc===1) parts.push('<div class="nav-divider"></div>');
+      prevMulti = mc>1;
+      const crown = isTop(n) ? ' <span class="crown">👑</span>' : '';
+      parts.push(`<div class="nav-item ${i===dIdx?'active':''}" onclick="selectDesigner(${i})">
+        <div class="nav-main">${esc(n)}${crown}</div>
+        <div class="nav-sub">${mc} ${plural(mc,'встреча','встречи','встреч')}</div></div>`);
+    });
+    elNav.innerHTML = parts.join('');
   }
 }
 function renderMain(){
@@ -137,7 +150,8 @@ function renderMain(){
   } else {
     const n=designerNames[dIdx];
     if(!n){ elMain.innerHTML=emptyHTML(); return; }
-    elMain.innerHTML = `<div class="session-header"><h1>${esc(n)}</h1></div>`
+    const crownH = isTop(n) ? ' <span class="crown-h1">👑</span>' : '';
+    elMain.innerHTML = `<div class="session-header"><h1>${esc(n)}${crownH}</h1></div>`
       + DIDX[n].map(x=>cardHTML(x.project,x.dateLabel)).join('');
   }
 }
@@ -178,8 +192,8 @@ TEMPLATE = """<!doctype html>
 <body>
 <nav class="sidebar">
   <div class="mode-toggle">
-    <button class="mode-btn active" id="mb-meetings" onclick="setMode('meetings')">Встречи</button>
-    <button class="mode-btn" id="mb-designers" onclick="setMode('designers')">Дизайнеры</button>
+    <button class="mode-btn active" id="mb-designers" onclick="setMode('designers')">Дизайнеры</button>
+    <button class="mode-btn" id="mb-meetings" onclick="setMode('meetings')">Встречи</button>
   </div>
   <div id="nav-list"></div>
 </nav>
