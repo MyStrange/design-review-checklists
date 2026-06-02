@@ -18,27 +18,36 @@ RU_MONTHS = ["января", "февраля", "марта", "апреля", "м
 CSS = """
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { background: #DCE4EF; font-family: 'Golos Text', sans-serif; font-size: 15px; line-height: 1.5; min-height: 100vh; display: flex; color: #1a1a1a; }
-.sidebar { width: 220px; flex-shrink: 0; background: #fff; padding: 24px 0; display: flex; flex-direction: column; position: fixed; top: 16px; left: 16px; bottom: 16px; border-radius: 22px; overflow-y: auto; }
+.sidebar { width: 250px; flex-shrink: 0; background: #fff; padding: 24px 0; display: flex; flex-direction: column; position: fixed; top: 0; left: 0; bottom: 0; overflow-y: auto; }
 .mode-toggle { display: flex; gap: 4px; margin: 0 16px 16px; background: #DCE4EF; border-radius: 8px; padding: 3px; }
-.mode-btn { flex: 1; text-align: center; font-size: 12px; font-weight: 600; padding: 6px 4px; border-radius: 6px; cursor: pointer; color: #999; border: none; background: transparent; font-family: inherit; transition: all .12s; }
+.mode-btn { flex: 1; text-align: center; font-size: 14px; font-weight: 600; padding: 7px 4px; border-radius: 6px; cursor: pointer; color: #555; border: none; background: transparent; font-family: inherit; transition: all .12s; }
 .mode-btn.active { background: #fff; color: #1a1a1a; }
 .sidebar-title { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #bbb; padding: 0 20px; margin-bottom: 12px; }
 .nav-item { padding: 10px 20px; cursor: pointer; transition: background .12s; border-left: 2px solid transparent; }
 .nav-item:hover { background: #fafafa; }
-.nav-item.active { border-left-color: transparent; background: #B2C0D4; }
-.nav-item.active .nav-main { color: #1a1a1a; }
-.nav-item.active .nav-sub { color: #54607a; }
+.nav-item.active { border-left-color: transparent; background: #1A4E80; }
+.nav-item.active .nav-main { color: #fff; }
+.nav-item.active .nav-sub { color: rgba(255,255,255,.8); }
 .nav-main { font-size: 14px; font-weight: 600; color: #1a1a1a; }
 .nav-item:not(.active) .nav-main { color: #888; font-weight: 500; }
 .nav-sub { font-size: 12px; color: #bbb; margin-top: 1px; }
 .nav-empty { padding: 10px 20px; color: #bbb; font-size: 13px; }
 .nav-divider { height: 1px; background: #cdd6e4; margin: 12px 16px 10px; }
-.main { margin-left: 252px; flex: 1; padding: 40px 40px 80px; max-width: 800px; }
+.main { margin-left: 250px; flex: 1; padding: 40px 40px 80px; max-width: 800px; }
 .session-header { margin-bottom: 28px; }
 .session-meta { font-size: 12px; color: #999; margin-bottom: 6px; letter-spacing: 0.04em; }
 h1 { font-size: 60px; font-weight: 600; color: #1a1a1a; letter-spacing: -0.02em; line-height: 1.05; }
 .crown-h1 { font-size: 34px; vertical-align: middle; }
-.status-badge { display: inline-block; margin-top: 14px; font-size: 13px; font-weight: 600; color: #199AF0; background: #EAF4FE; padding: 6px 14px; border-radius: 999px; }
+.status-badge { display: inline-block; margin-top: 14px; font-size: 12px; font-weight: 600; color: #fff; padding: 5px 11px; border-radius: 6px; }
+.st-king { background: #C99A2E; }
+.st-product { background: #9b59b6; }
+.st-dev { background: #3a7be0; }
+.st-seo { background: #2e9e6b; }
+.st-legal { background: #9a7b2e; }
+.st-brand { background: #d6336c; }
+.st-rare { background: #8a94a6; }
+.st-regular { background: #5a78b0; }
+.st-ux { background: #199AF0; }
 .card-date { font-size: 12px; font-weight: 600; color: #999; margin: 22px 0 8px 2px; }
 .card-date:first-child { margin-top: 0; }
 .project { background: #fff; border-radius: 20px; margin-bottom: 14px; overflow: hidden; }
@@ -79,7 +88,7 @@ h1 { font-size: 60px; font-weight: 600; color: #1a1a1a; letter-spacing: -0.02em;
   .sidebar-title { display: none; }
   #nav-list { display: flex; overflow-x: auto; gap: 4px; padding: 0 8px; }
   .nav-item { flex-shrink: 0; border-left: none; border-bottom: 2px solid transparent; padding: 6px 12px; border-radius: 8px; }
-  .nav-item.active { border-bottom-color: transparent; background: #B2C0D4; }
+  .nav-item.active { border-bottom-color: transparent; background: #1A4E80; }
   .main { margin-left: 0; padding: 24px 16px 80px; }
   h1 { font-size: 38px; }
 }
@@ -107,13 +116,20 @@ const maxMeetings = designerNames.length ? Math.max(...designerNames.map(meeting
 function isTop(n){ return maxMeetings>=2 && meetingsOf(n)===maxMeetings; }
 // шуточный статус, виден при открытии дизайнера
 function designerStatus(n){
-  if(isTop(n)) return '👑 Король ревью — приходит чаще всех';
-  if(meetingsOf(n)===1) return '✨ Редкий гость — каждый раз как праздник';
-  const c={};
-  DIDX[n].forEach(e=> e.project.tasks.forEach(t=>{ if(t.tag && t.tag!=='ux') c[t.tag]=(c[t.tag]||0)+1; }));
-  const top=Object.keys(c).sort((a,b)=>c[b]-c[a])[0];
-  const m={dev:'🛠 Дружит с разработкой', product:'🧭 Частый гость продакта', discuss:'🧭 Частый гость продакта', seo:'🔍 SEO-душа', legal:'⚖️ На короткой ноге с юристами', branding:'🎯 Хранитель бренда'};
-  return m[top] || '🎨 Пиксель-перфекционист';
+  if(isTop(n)) return {t:'Король ревью — приходит чаще всех', c:'st-king'};
+  const mc=meetingsOf(n);
+  if(mc===1) return {t:'✨ Редкий гость — каждый раз как праздник', c:'st-rare'};
+  const cnt={};
+  DIDX[n].forEach(e=> e.project.tasks.forEach(t=>{ if(t.tag && t.tag!=='ux') cnt[t.tag]=(cnt[t.tag]||0)+1; }));
+  const prod=(cnt.product||0)+(cnt.discuss||0);
+  if(prod>=2) return {t:'🧭 Частый гость продакта', c:'st-product'};
+  const top=Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a])[0];
+  if(top==='dev') return {t:'🛠 Дружит с разработкой', c:'st-dev'};
+  if(top==='seo') return {t:'🔍 SEO-душа', c:'st-seo'};
+  if(top==='legal') return {t:'⚖️ На короткой ноге с юристами', c:'st-legal'};
+  if(top==='branding') return {t:'🎯 Хранитель бренда', c:'st-brand'};
+  if(mc>=3) return {t:'🔥 Завсегдатай ревью', c:'st-regular'};
+  return {t:'🎨 Пиксель-перфекционист', c:'st-ux'};
 }
 
 let mode='designers', sIdx=0, dIdx=0;
@@ -166,7 +182,8 @@ function renderMain(){
     const n=designerNames[dIdx];
     if(!n){ elMain.innerHTML=emptyHTML(); return; }
     const crownH = isTop(n) ? ' <span class="crown-h1">👑</span>' : '';
-    elMain.innerHTML = `<div class="session-header"><h1>${esc(n)}${crownH}</h1><div class="status-badge">${designerStatus(n)}</div></div>`
+    const st = designerStatus(n);
+    elMain.innerHTML = `<div class="session-header"><h1>${esc(n)}${crownH}</h1><div><span class="status-badge ${st.c}">${st.t}</span></div></div>`
       + DIDX[n].map(x=>cardHTML(x.project,x.dateLabel)).join('');
   }
 }
