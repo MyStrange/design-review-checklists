@@ -16,9 +16,9 @@ body { background: #DCE4EF; font-family: 'Golos Text', sans-serif; font-size: 15
 .sidebar-title { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #bbb; padding: 0 20px; margin-bottom: 12px; }
 .nav-item { padding: 10px 20px; cursor: pointer; transition: background .12s; border-left: 2px solid transparent; }
 .nav-item:hover { background: #fafafa; }
-.nav-item.active { border-left-color: transparent; background: #199AF0; }
-.nav-item.active .nav-main { color: #fff; }
-.nav-item.active .nav-sub { color: rgba(255,255,255,.82); }
+.nav-item.active { border-left-color: transparent; background: #B2C0D4; }
+.nav-item.active .nav-main { color: #1a1a1a; }
+.nav-item.active .nav-sub { color: #54607a; }
 .nav-main { font-size: 14px; font-weight: 600; color: #1a1a1a; }
 .nav-item:not(.active) .nav-main { color: #888; font-weight: 500; }
 .nav-sub { font-size: 12px; color: #bbb; margin-top: 1px; }
@@ -56,6 +56,10 @@ h1 { font-size: 60px; font-weight: 600; color: #1a1a1a; letter-spacing: -0.02em;
 .tag.ux { color: #e07b3a; background: #fef0e6; }
 .tag.dev { color: #3a7be0; background: #e6effe; }
 .tag.discuss { color: #9b59b6; background: #f5edfc; }
+.tag.product { color: #9b59b6; background: #f5edfc; }
+.tag.seo { color: #2e9e6b; background: #e6f7ee; }
+.tag.legal { color: #9a7b2e; background: #f6efdc; }
+.tag.branding { color: #d6336c; background: #fde8ef; }
 .placeholder { color: #bbb; text-align: center; padding: 80px 20px; }
 .reset-btn { position: fixed; bottom: 24px; right: 24px; background: #fff; border: 1px solid #e0e0e0; color: #999; font-family: 'Golos Text', sans-serif; font-size: 12px; padding: 8px 14px; border-radius: 8px; cursor: pointer; transition: all .15s; }
 .reset-btn:hover { color: #555; border-color: #bbb; }
@@ -66,7 +70,7 @@ h1 { font-size: 60px; font-weight: 600; color: #1a1a1a; letter-spacing: -0.02em;
   .sidebar-title { display: none; }
   #nav-list { display: flex; overflow-x: auto; gap: 4px; padding: 0 8px; }
   .nav-item { flex-shrink: 0; border-left: none; border-bottom: 2px solid transparent; padding: 6px 12px; border-radius: 8px; }
-  .nav-item.active { border-bottom-color: transparent; background: #199AF0; }
+  .nav-item.active { border-bottom-color: transparent; background: #B2C0D4; }
   .main { margin-left: 0; padding: 24px 16px 80px; }
   h1 { font-size: 38px; }
 }
@@ -87,7 +91,7 @@ const DATA = {"sessions": [{"id": "s20260602p1i0", "date": "2026-06-02", "dateLa
 const STORAGE_KEY = 'review-state-v3';
 let state = (()=>{ try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch(e){ return {}; } })();
 const save = ()=> localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-const tagLabel = { ux:'UX', dev:'Разработка', discuss:'Уточнить' };
+const tagLabel = { dev:'Разработка', product:'Продакт', seo:'SEO', legal:'Юрист', branding:'Брендинг', discuss:'Продакт' };
 
 function esc(s){ return (''+s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function plural(n,a,b,c){ const m=n%100, d=n%10; if(m>=11&&m<=14) return c; if(d===1) return a; if(d>=2&&d<=4) return b; return c; }
@@ -106,12 +110,11 @@ function isTop(n){ return maxMeetings>=2 && meetingsOf(n)===maxMeetings; }
 function designerStatus(n){
   if(isTop(n)) return '👑 Король ревью — приходит чаще всех';
   if(meetingsOf(n)===1) return '✨ Редкий гость — каждый раз как праздник';
-  const tags={ux:0,dev:0,discuss:0};
-  DIDX[n].forEach(e=> e.project.tasks.forEach(t=>{ if(tags[t.tag]!=null) tags[t.tag]++; }));
-  const top=Object.keys(tags).sort((a,b)=>tags[b]-tags[a])[0];
-  if(top==='discuss') return '🗣 Любит всё обсудить';
-  if(top==='dev') return '🛠 Дружит с разработкой';
-  return '🎨 Пиксель-перфекционист';
+  const c={};
+  DIDX[n].forEach(e=> e.project.tasks.forEach(t=>{ if(t.tag && t.tag!=='ux') c[t.tag]=(c[t.tag]||0)+1; }));
+  const top=Object.keys(c).sort((a,b)=>c[b]-c[a])[0];
+  const m={dev:'🛠 Дружит с разработкой', product:'🧭 Частый гость продакта', discuss:'🧭 Частый гость продакта', seo:'🔍 SEO-душа', legal:'⚖️ На короткой ноге с юристами', branding:'🎯 Хранитель бренда'};
+  return m[top] || '🎨 Пиксель-перфекционист';
 }
 
 let mode='designers', sIdx=0, dIdx=0;
@@ -120,9 +123,11 @@ const elMain=document.getElementById('main');
 
 function countDone(tasks){ let n=0; tasks.forEach(t=>{ if(state[t.id]) n++; }); return n; }
 function taskHTML(t,projId){
+  const lbl=tagLabel[t.tag];
+  const tg = lbl ? `<span class="tag ${t.tag}">${lbl}</span>` : '';
   return `<div class="task ${state[t.id]?'checked':''}" id="task-${t.id}" onclick="toggleTask('${t.id}','${projId}')">
     <div class="checkbox"></div>
-    <div class="task-text">${esc(t.text)}<span class="tag ${t.tag}">${tagLabel[t.tag]||''}</span></div></div>`;
+    <div class="task-text">${esc(t.text)}${tg}</div></div>`;
 }
 function cardHTML(p,headline){
   const done=countDone(p.tasks), total=p.tasks.length;
