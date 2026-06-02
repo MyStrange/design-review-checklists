@@ -51,11 +51,19 @@ def build_session(item, extracted):
         for p in d.get("projects", []):
             pname = (p.get("name") or "Без названия").strip() or "Без названия"
             items = []
-            for idx, text in enumerate(p.get("items", [])):
-                text = (text or "").strip()
+            for idx, raw in enumerate(p.get("items", [])):
+                if isinstance(raw, dict):
+                    text = (raw.get("text") or "").strip()
+                    tag = (raw.get("tag") or "ux").strip().lower()
+                else:  # запас на случай старого формата (просто строка)
+                    text = (raw or "").strip()
+                    tag = "ux"
                 if not text:
                     continue
-                items.append({"id": _item_id(date_iso, name, pname, idx, text), "text": text})
+                if tag not in ("ux", "dev", "discuss"):
+                    tag = "ux"
+                items.append({"id": _item_id(date_iso, name, pname, idx, text),
+                              "text": text, "tag": tag})
             projects.append({"name": pname, "items": items})
         designers.append({"name": name, "projects": projects})
     return {

@@ -1,177 +1,259 @@
 """Сборка статической HTML-страницы из data/checklists.json.
 
-Навигация: Дизайнер → Дата → Проект → пункты-чекбоксы.
-Галочки сохраняются в localStorage браузера (личные у каждого).
+Дизайн повторяет исходный артефакт (светлая тема, Golos Text, сайдбар встреч,
+карточки по дизайнерам, теги, зелёные чекбоксы, localStorage) и добавляет режим
+«Дизайнеры»: выбираешь дизайнера — видишь только его правки по всем встречам.
+
 Страница самодостаточна (один index.html), хостится где угодно.
 """
 import html
+import json
 from datetime import datetime
 
 from . import config
 
+RU_MONTHS = ["января", "февраля", "марта", "апреля", "мая", "июня",
+             "июля", "августа", "сентября", "октября", "ноября", "декабря"]
+
 CSS = """
-:root{--bg:#0f1115;--card:#181b22;--line:#262b35;--fg:#e7e9ee;--muted:#9aa3b2;--accent:#5b8cff;--done:#5a6472}
-*{box-sizing:border-box}
-body{margin:0;font:15px/1.5 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--fg)}
-.top{padding:20px 24px;border-bottom:1px solid var(--line)}
-.top h1{margin:0;font-size:20px}
-.hint{margin:4px 0 0;color:var(--muted);font-size:13px}
-#app{padding:18px 24px;max-width:920px;margin:0 auto}
-#designers{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px}
-#designers button{background:var(--card);color:var(--fg);border:1px solid var(--line);padding:8px 14px;border-radius:999px;cursor:pointer;font-size:14px}
-#designers button.active{background:var(--accent);border-color:var(--accent);color:#fff}
-.dates{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px}
-.dates button{background:transparent;color:var(--muted);border:1px solid var(--line);padding:6px 12px;border-radius:8px;cursor:pointer;font-size:13px}
-.dates button.active{color:var(--fg);border-color:var(--accent)}
-.project{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px}
-.project h3{margin:0 0 10px;font-size:16px}
-ul.items{list-style:none;margin:0;padding:0}
-.item{padding:7px 0;border-top:1px solid var(--line)}
-.item:first-child{border-top:none}
-.item label{display:flex;align-items:flex-start;gap:10px;cursor:pointer}
-.item input{margin-top:3px;width:17px;height:17px;accent-color:var(--accent);flex:none}
-.item.done .txt{text-decoration:line-through;color:var(--done)}
-.empty{color:var(--muted);margin:0;font-size:13px}
-.placeholder{color:var(--muted);text-align:center;padding:60px 20px}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #f5f5f3; font-family: 'Golos Text', sans-serif; font-size: 15px; line-height: 1.5; min-height: 100vh; display: flex; color: #1a1a1a; }
+.sidebar { width: 220px; flex-shrink: 0; background: #fff; border-right: 1px solid #e8e8e8; padding: 24px 0; display: flex; flex-direction: column; position: fixed; top: 0; left: 0; bottom: 0; overflow-y: auto; }
+.mode-toggle { display: flex; gap: 4px; margin: 0 16px 16px; background: #f0f0ee; border-radius: 8px; padding: 3px; }
+.mode-btn { flex: 1; text-align: center; font-size: 12px; font-weight: 600; padding: 6px 4px; border-radius: 6px; cursor: pointer; color: #999; border: none; background: transparent; font-family: inherit; transition: all .12s; }
+.mode-btn.active { background: #fff; color: #1a1a1a; box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+.sidebar-title { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #bbb; padding: 0 20px; margin-bottom: 12px; }
+.nav-item { padding: 10px 20px; cursor: pointer; transition: background .12s; border-left: 2px solid transparent; }
+.nav-item:hover { background: #fafafa; }
+.nav-item.active { border-left-color: #1a1a1a; background: #f5f5f3; }
+.nav-main { font-size: 14px; font-weight: 600; color: #1a1a1a; }
+.nav-item:not(.active) .nav-main { color: #888; font-weight: 500; }
+.nav-sub { font-size: 12px; color: #bbb; margin-top: 1px; }
+.nav-empty { padding: 10px 20px; color: #bbb; font-size: 13px; }
+.main { margin-left: 220px; flex: 1; padding: 40px 40px 80px; max-width: 800px; }
+.session-header { margin-bottom: 28px; }
+.session-meta { font-size: 12px; color: #999; margin-bottom: 6px; letter-spacing: 0.04em; }
+h1 { font-size: 22px; font-weight: 600; color: #1a1a1a; }
+.card-date { font-size: 12px; font-weight: 600; color: #999; margin: 22px 0 8px 2px; }
+.card-date:first-child { margin-top: 0; }
+.project { background: #fff; border-radius: 12px; margin-bottom: 12px; overflow: hidden; border: 1px solid #e8e8e8; }
+.project-header { padding: 18px 20px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; gap: 12px; }
+.project-header:hover { background: #fafafa; }
+.author { font-size: 15px; font-weight: 600; color: #1a1a1a; }
+.project-name { font-size: 13px; color: #999; margin-top: 1px; }
+.project-right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.count { font-size: 13px; color: #bbb; font-weight: 500; }
+.count.done { color: #3ecf8e; }
+.chevron { color: #ccc; font-size: 11px; transition: transform 0.2s; }
+.project.collapsed .chevron { transform: rotate(-90deg); }
+.project.collapsed .tasks { display: none; }
+.tasks { border-top: 1px solid #f0f0f0; }
+.task { display: flex; align-items: flex-start; gap: 12px; padding: 14px 20px; border-bottom: 1px solid #f0f0f0; cursor: pointer; }
+.task:last-child { border-bottom: none; }
+.task:hover { background: #fafafa; }
+.checkbox { width: 17px; height: 17px; border-radius: 4px; border: 1.5px solid #d0d0d0; flex-shrink: 0; margin-top: 2px; display: flex; align-items: center; justify-content: center; transition: all .15s; background: #fff; }
+.task.checked .checkbox { background: #3ecf8e; border-color: #3ecf8e; }
+.task.checked .checkbox::after { content: '✓'; font-size: 10px; color: #fff; font-weight: 700; }
+.task-text { font-size: 14px; color: #333; flex: 1; padding-top: 1px; }
+.task.checked .task-text { color: #bbb; text-decoration: line-through; text-decoration-color: #ccc; }
+.tag { display: inline-block; font-size: 10px; font-weight: 600; letter-spacing: 0.05em; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; margin-left: 6px; vertical-align: middle; position: relative; top: -1px; }
+.tag.ux { color: #e07b3a; background: #fef0e6; }
+.tag.dev { color: #3a7be0; background: #e6effe; }
+.tag.discuss { color: #9b59b6; background: #f5edfc; }
+.placeholder { color: #bbb; text-align: center; padding: 80px 20px; }
+.reset-btn { position: fixed; bottom: 24px; right: 24px; background: #fff; border: 1px solid #e0e0e0; color: #999; font-family: 'Golos Text', sans-serif; font-size: 12px; padding: 8px 14px; border-radius: 8px; cursor: pointer; transition: all .15s; }
+.reset-btn:hover { color: #555; border-color: #bbb; }
+@media (max-width: 640px) {
+  body { flex-direction: column; }
+  .sidebar { width: 100%; position: static; border-right: none; border-bottom: 1px solid #e8e8e8; padding: 12px 0; }
+  .mode-toggle { margin: 0 12px 10px; }
+  .sidebar-title { display: none; }
+  #nav-list { display: flex; overflow-x: auto; gap: 4px; padding: 0 8px; }
+  .nav-item { flex-shrink: 0; border-left: none; border-bottom: 2px solid transparent; padding: 6px 12px; border-radius: 8px; }
+  .nav-item.active { border-bottom-color: #1a1a1a; background: #f5f5f3; }
+  .main { margin-left: 0; padding: 24px 16px 80px; }
+}
 """
 
 JS = """
-(function(){
-  var KEY='dr_checked_v1';
-  function load(){try{return new Set(JSON.parse(localStorage.getItem(KEY)||'[]'))}catch(e){return new Set()}}
-  function save(s){try{localStorage.setItem(KEY,JSON.stringify(Array.from(s)))}catch(e){}}
-  var checked=load();
-  document.querySelectorAll('input[type=checkbox][data-id]').forEach(function(cb){
-    var id=cb.getAttribute('data-id');
-    if(checked.has(id)){cb.checked=true;cb.closest('.item').classList.add('done');}
-    cb.addEventListener('change',function(){
-      var li=cb.closest('.item');
-      if(cb.checked){checked.add(id);li.classList.add('done');}
-      else{checked.delete(id);li.classList.remove('done');}
-      save(checked);
-    });
-  });
-  function selectDate(id){
-    var panel=document.getElementById(id); if(!panel)return;
-    var sec=panel.closest('.designer');
-    sec.querySelectorAll('.date-panel').forEach(function(p){p.hidden=(p.id!==id);});
-    sec.querySelectorAll('.dates button').forEach(function(b){b.classList.toggle('active',b.getAttribute('data-target')===id);});
+const DATA = /*__DATA__*/;
+const STORAGE_KEY = 'review-state-v3';
+let state = (()=>{ try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch(e){ return {}; } })();
+const save = ()=> localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+const tagLabel = { ux:'UX', dev:'Разработка', discuss:'Уточнить' };
+
+function esc(s){ return (''+s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function plural(n,a,b,c){ const m=n%100, d=n%10; if(m>=11&&m<=14) return c; if(d===1) return a; if(d>=2&&d<=4) return b; return c; }
+
+const projById = {};
+DATA.sessions.forEach(s=> s.projects.forEach(p=>{ projById[p.id]=p; }));
+const DIDX = {};
+DATA.sessions.forEach(s=> s.projects.forEach(p=>{ (DIDX[p.author]=DIDX[p.author]||[]).push({ dateLabel:s.dateLabel, project:p }); }));
+const designerNames = Object.keys(DIDX).sort((a,b)=> a.localeCompare(b,'ru'));
+
+let mode='meetings', sIdx=0, dIdx=0;
+const elNav=document.getElementById('nav-list');
+const elMain=document.getElementById('main');
+
+function countDone(tasks){ let n=0; tasks.forEach(t=>{ if(state[t.id]) n++; }); return n; }
+function taskHTML(t,projId){
+  return `<div class="task ${state[t.id]?'checked':''}" id="task-${t.id}" onclick="toggleTask('${t.id}','${projId}')">
+    <div class="checkbox"></div>
+    <div class="task-text">${esc(t.text)}<span class="tag ${t.tag}">${tagLabel[t.tag]||''}</span></div></div>`;
+}
+function cardHTML(p,headline){
+  const done=countDone(p.tasks), total=p.tasks.length;
+  return `<div class="project" id="proj-${p.id}">
+    <div class="project-header" onclick="toggleProj('${p.id}')">
+      <div><div class="author">${esc(headline)}</div><div class="project-name">${esc(p.title)}</div></div>
+      <div class="project-right"><div class="count ${done===total&&total>0?'done':''}" id="count-${p.id}">${done}/${total}</div><div class="chevron">▾</div></div>
+    </div>
+    <div class="tasks">${p.tasks.map(t=>taskHTML(t,p.id)).join('')}</div></div>`;
+}
+function emptyHTML(){ return '<div class="placeholder">Пока нет ни одного ревью.<br>Как только придёт первый конспект — он появится здесь.</div>'; }
+
+function renderNav(){
+  if(mode==='meetings'){
+    if(!DATA.sessions.length){ elNav.innerHTML='<div class="nav-empty">Нет встреч</div>'; return; }
+    elNav.innerHTML = DATA.sessions.map((s,i)=>`<div class="nav-item ${i===sIdx?'active':''}" onclick="selectSession(${i})">
+      <div class="nav-main">${esc(s.dateLabel)}</div>
+      <div class="nav-sub">${s.designersCount} ${plural(s.designersCount,'дизайнер','дизайнера','дизайнеров')}</div></div>`).join('');
+  } else {
+    if(!designerNames.length){ elNav.innerHTML='<div class="nav-empty">Нет дизайнеров</div>'; return; }
+    elNav.innerHTML = designerNames.map((n,i)=>{
+      const e=DIDX[n]; const tot=e.reduce((a,x)=>a+x.project.tasks.length,0);
+      return `<div class="nav-item ${i===dIdx?'active':''}" onclick="selectDesigner(${i})">
+        <div class="nav-main">${esc(n)}</div>
+        <div class="nav-sub">${e.length} ${plural(e.length,'встреча','встречи','встреч')} · ${tot} ${plural(tot,'задача','задачи','задач')}</div></div>`;
+    }).join('');
   }
-  function selectDesigner(id){
-    document.querySelectorAll('.designer').forEach(function(s){s.hidden=(s.id!==id);});
-    document.querySelectorAll('#designers button').forEach(function(b){b.classList.toggle('active',b.getAttribute('data-target')===id);});
-    var sec=document.getElementById(id);
-    var first=sec&&sec.querySelector('.dates button');
-    if(first)selectDate(first.getAttribute('data-target'));
+}
+function renderMain(){
+  if(mode==='meetings'){
+    const s=DATA.sessions[sIdx];
+    if(!s){ elMain.innerHTML=emptyHTML(); return; }
+    elMain.innerHTML = `<div class="session-header"><h1>Чеклист правок</h1></div>`
+      + (s.projects.map(p=>cardHTML(p,p.author)).join('') || emptyHTML());
+  } else {
+    const n=designerNames[dIdx];
+    if(!n){ elMain.innerHTML=emptyHTML(); return; }
+    elMain.innerHTML = `<div class="session-header"><h1>${esc(n)}</h1></div>`
+      + DIDX[n].map(x=>cardHTML(x.project,x.dateLabel)).join('');
   }
-  document.querySelectorAll('#designers button').forEach(function(b){b.onclick=function(){selectDesigner(b.getAttribute('data-target'));};});
-  document.querySelectorAll('.dates button').forEach(function(b){b.onclick=function(){selectDate(b.getAttribute('data-target'));};});
-  var firstD=document.querySelector('#designers button');
-  if(firstD)selectDesigner(firstD.getAttribute('data-target'));
-})();
+}
+function render(){ renderNav(); renderMain(); }
+function setMode(m){ if(mode===m) return; mode=m;
+  document.getElementById('mb-meetings').classList.toggle('active', m==='meetings');
+  document.getElementById('mb-designers').classList.toggle('active', m==='designers');
+  render(); }
+function selectSession(i){ sIdx=i; render(); }
+function selectDesigner(i){ dIdx=i; render(); }
+function toggleProj(id){ const el=document.getElementById('proj-'+id); if(el) el.classList.toggle('collapsed'); }
+function toggleTask(taskId,projId){
+  state[taskId]=!state[taskId]; save();
+  const te=document.getElementById('task-'+taskId); if(te) te.classList.toggle('checked', state[taskId]);
+  const p=projById[projId]; if(p){ const done=countDone(p.tasks), total=p.tasks.length;
+    const ce=document.getElementById('count-'+projId); if(ce){ ce.textContent=done+'/'+total; ce.className='count'+(done===total&&total>0?' done':''); } }
+}
+function resetCurrent(){
+  if(!confirm('Сбросить все отметки в этом разделе?')) return;
+  let tasks=[];
+  if(mode==='meetings'){ const s=DATA.sessions[sIdx]; if(s) s.projects.forEach(p=>tasks.push(...p.tasks)); }
+  else { const n=designerNames[dIdx]; (DIDX[n]||[]).forEach(x=>tasks.push(...x.project.tasks)); }
+  tasks.forEach(t=> delete state[t.id]); save(); renderMain();
+}
+render();
+"""
+
+TEMPLATE = """<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>__TITLE__</title>
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&display=swap" rel="stylesheet">
+<style>__CSS__</style>
+</head>
+<body>
+<nav class="sidebar">
+  <div class="mode-toggle">
+    <button class="mode-btn active" id="mb-meetings" onclick="setMode('meetings')">Встречи</button>
+    <button class="mode-btn" id="mb-designers" onclick="setMode('designers')">Дизайнеры</button>
+  </div>
+  <div id="nav-list"></div>
+</nav>
+<main class="main" id="main"></main>
+<button class="reset-btn" onclick="resetCurrent()">Сбросить</button>
+<script>__JS__</script>
+</body>
+</html>
 """
 
 
-def fmt_date(iso):
+def _date_label(iso):
     try:
-        return datetime.strptime(iso, "%Y-%m-%d").strftime("%d.%m.%Y")
+        dt = datetime.strptime(iso, "%Y-%m-%d")
+        return "%d %s" % (dt.day, RU_MONTHS[dt.month - 1])
     except Exception:
         return iso or "без даты"
 
 
-def _pivot(sessions):
-    """name -> { date_iso: {weekday, part, projects:[...]} }"""
-    designers = {}
-    for s in sessions:
-        for d in s.get("designers", []):
-            name = d.get("name") or "Не указан"
-            by_name = designers.setdefault(name, {})
-            key = s.get("date") or ""
-            entry = by_name.setdefault(
-                key, {"weekday": s.get("weekday", ""), "part": s.get("part", ""), "projects": []}
-            )
-            entry["projects"].extend(d.get("projects", []))
-    return designers
+def _meta(iso, part, weekday):
+    try:
+        dt = datetime.strptime(iso, "%Y-%m-%d")
+        head = "%d %s %d" % (dt.day, RU_MONTHS[dt.month - 1], dt.year)
+    except Exception:
+        head = iso or "без даты"
+    suffix = " · ".join([x for x in (part, weekday) if x]) or "дизайна"
+    return "%s · Ревью %s" % (head, suffix)
 
 
-def _render_projects(projects):
+def _to_data(sessions):
+    """Преобразует наши данные в структуру, которую рендерит JS на странице."""
     out = []
-    for p in projects:
-        out.append('<div class="project">')
-        out.append("<h3>" + html.escape(p.get("name") or "Без названия") + "</h3>")
-        items = p.get("items", [])
-        if items:
-            out.append('<ul class="items">')
-            for it in items:
-                iid = html.escape(it.get("id", ""))
-                txt = html.escape(it.get("text", ""))
-                out.append(
-                    '<li class="item"><label><input type="checkbox" data-id="'
-                    + iid
-                    + '"><span class="txt">'
-                    + txt
-                    + "</span></label></li>"
-                )
-            out.append("</ul>")
-        else:
-            out.append('<p class="empty">Конкретных правок не зафиксировано.</p>')
-        out.append("</div>")
-    return "".join(out)
+    # новые встречи сверху
+    ordered = sorted(sessions, key=lambda s: s.get("date") or "", reverse=True)
+    for i, s in enumerate(ordered):
+        iso = s.get("date") or ""
+        sid = "s" + iso.replace("-", "")
+        if s.get("part"):
+            sid += "p" + "".join(ch for ch in s["part"] if ch.isdigit())
+        sid += "i%d" % i
+        projects = []
+        names = set()
+        for di, d in enumerate(s.get("designers", [])):
+            names.add(d.get("name", ""))
+            for pi, p in enumerate(d.get("projects", [])):
+                projects.append({
+                    "id": "%s-%d-%d" % (sid, di, pi),
+                    "author": d.get("name") or "Не указан",
+                    "title": p.get("name") or "Без названия",
+                    "tasks": [
+                        {"id": it.get("id", ""), "text": it.get("text", ""),
+                         "tag": it.get("tag", "ux")}
+                        for it in p.get("items", [])
+                    ],
+                })
+        out.append({
+            "id": sid,
+            "date": iso,
+            "dateLabel": _date_label(iso),
+            "meta": _meta(iso, s.get("part", ""), s.get("weekday", "")),
+            "designersCount": len([n for n in names if n]),
+            "projects": projects,
+        })
+    return {"sessions": out}
 
 
 def build_html(data):
-    sessions = data.get("sessions", [])
-    designers = _pivot(sessions)
-
-    body = []
-    if not designers:
-        body.append(
-            '<div class="placeholder">Пока нет ни одного ревью.<br>'
-            "Как только придёт первый конспект — он появится здесь.</div>"
-        )
-    else:
-        nav = ['<nav id="designers">']
-        sections = []
-        for di, name in enumerate(sorted(designers.keys(), key=lambda x: x.lower())):
-            did = "d%d" % di
-            nav.append('<button data-target="' + did + '">' + html.escape(name) + "</button>")
-
-            dates = designers[name]
-            date_keys = sorted(dates.keys(), reverse=True)
-            sec = ['<section class="designer" id="' + did + '" hidden>', '<div class="dates">']
-            for ti, dk in enumerate(date_keys):
-                tid = "%s-t%d" % (did, ti)
-                meta = dates[dk]
-                sub = [x for x in (meta.get("weekday", ""), meta.get("part", "")) if x]
-                label = fmt_date(dk) + (" · " + " · ".join(sub) if sub else "")
-                sec.append('<button data-target="' + tid + '">' + html.escape(label) + "</button>")
-            sec.append("</div>")
-            for ti, dk in enumerate(date_keys):
-                tid = "%s-t%d" % (did, ti)
-                sec.append('<div class="date-panel" id="' + tid + '" hidden>')
-                sec.append(_render_projects(dates[dk]["projects"]))
-                sec.append("</div>")
-            sec.append("</section>")
-            sections.append("".join(sec))
-        nav.append("</nav>")
-        body.append("".join(nav))
-        body.append("<main>" + "".join(sections) + "</main>")
-
-    title = html.escape(config.SITE_TITLE)
-    return (
-        '<!doctype html>\n<html lang="ru">\n<head>\n'
-        '<meta charset="utf-8">\n'
-        '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
-        '<meta name="robots" content="noindex, nofollow">\n'
-        "<title>" + title + "</title>\n"
-        "<style>" + CSS + "</style>\n"
-        "</head>\n<body>\n"
-        '<header class="top"><h1>' + title + "</h1>"
-        '<p class="hint">Отметки галочками сохраняются только в этом браузере (на этом устройстве).</p></header>\n'
-        '<div id="app">' + "".join(body) + "</div>\n"
-        "<script>" + JS + "</script>\n"
-        "</body>\n</html>\n"
-    )
+    payload = _to_data(data.get("sessions", []))
+    data_json = json.dumps(payload, ensure_ascii=False).replace("<", "\\u003c").replace(">", "\\u003e")
+    js = JS.replace("/*__DATA__*/", data_json)
+    return (TEMPLATE
+            .replace("__TITLE__", html.escape(config.SITE_TITLE))
+            .replace("__CSS__", CSS)
+            .replace("__JS__", js))
 
 
 def build_site(data):
