@@ -1,16 +1,21 @@
 """Забор писем-конспектов с Яндекс-почты по IMAP.
 
-Ищем письма от нужного отправителя за последние N дней, фильтруем по теме и
-наличию .txt-вложения, возвращаем только ещё не обработанные (по UID).
+Матчим письма по ДОМЕНУ отправителя (telemost.yandex.ru — любой адрес Телемоста),
+по фразе в теме и по наличию .txt-вложения. Возвращаем только не обработанные.
 Только стандартная библиотека.
 """
-import imaplib
 import email
+import imaplib
 import re
 from datetime import datetime, timedelta
 from email.header import decode_header
 
 from . import config
+
+# Из REVIEW_SENDER берём домен — матчим по нему, а не по точному адресу,
+# чтобы не зависеть от точного имени ящика отправителя.
+SENDER_DOMAIN = config.REVIEW_SENDER.split("@")[-1] if "@" in config.REVIEW_SENDER else config.REVIEW_SENDER
+MAX_SCAN = 500  # сколько последних писем максимум смотрим в запасном режиме
 
 
 def _decode_header(value):
@@ -63,6 +68,21 @@ def _extract_txt(msg):
     return "\n\n".join(chunks)
 
 
+def _search(M, criteria):
+    typ, data = M.uid("search", None, criteria)
+    if typ != "OK" or not data or not data[0]:
+        return []
+    return data[0].split()
+
+
+def _headers(M, uid_b):
+    typ, d = M.uid("fetch", uid_b, "(BODY.PEEK[HEADER.FIELDS (FROM SUBJECT)])")
+    if typ != "OK" or not d or d[0] is None:
+        return "", ""
+    msg = email.message_from_bytes(d[0][1])
+    return _decode_header(msg.get("From")), _decode_header(msg.get("Subject"))
+
+
 def fetch_new_reviews(processed_uids):
     """processed_uids: set[str]. Возвращает список новых писем-конспектов."""
     M = imaplib.IMAP4_SSL(config.IMAP_HOST, config.IMAP_PORT)
@@ -71,36 +91,47 @@ def fetch_new_reviews(processed_uids):
         M.select("INBOX")
 
         since = (datetime.utcnow() - timedelta(days=config.SEARCH_SINCE_DAYS)).strftime("%d-%b-%Y")
-        criteria = '(FROM "%s" SINCE %s)' % (config.REVIEW_SENDER, since)
-        typ, data = M.uid("search", None, criteria)
-        if typ != "OK" or not data or not data[0]:
-            return []
 
+        # Основной поиск — по домену отправителя на сервере.
+        uids = _search(M, '(FROM "%s" SINCE %s)' % (SENDER_DOMAIN, since))
+        mode = "по отправителю (%s)" % SENDER_DOMAIN
+        if not uids:
+            # Запасной режим: берём все письма за период и фильтруем в Python.
+            uids = _search(M, "(SINCE %s)" % since)
+            mode = "по дате (запасной режим)"
+
+        uids = list(reversed(uids))[:MAX_SCAN]  # новые сверху, с ограничением
+        print("Кандидатов %s: %d" % (mode, len(uids)))
+
+        from_domain = 0
         result = []
-        for uid_b in data[0].split():
+        for uid_b in uids:
             uid = uid_b.decode()
             if uid in processed_uids:
                 continue
-            typ, msgdata = M.uid("fetch", uid_b, "(RFC822)")
-            if typ != "OK" or not msgdata or msgdata[0] is None:
+            frm, subj = _headers(M, uid_b)
+            if SENDER_DOMAIN.lower() not in frm.lower():
                 continue
-            msg = email.message_from_bytes(msgdata[0][1])
-            subject = _decode_header(msg.get("Subject"))
-            if config.SUBJECT_MUST_CONTAIN.lower() not in subject.lower():
+            from_domain += 1
+            if config.SUBJECT_MUST_CONTAIN.lower() not in subj.lower():
                 continue
+            typ, md = M.uid("fetch", uid_b, "(RFC822)")
+            if typ != "OK" or not md or md[0] is None:
+                continue
+            msg = email.message_from_bytes(md[0][1])
             transcript = _extract_txt(msg)
             if not transcript.strip():
                 continue
-            date_iso, part = parse_subject_meta(subject)
-            result.append(
-                {
-                    "uid": uid,
-                    "subject": subject,
-                    "date": date_iso,
-                    "part": part,
-                    "transcript": transcript,
-                }
-            )
+            date_iso, part = parse_subject_meta(subj)
+            result.append({
+                "uid": uid,
+                "subject": subj,
+                "date": date_iso,
+                "part": part,
+                "transcript": transcript,
+            })
+
+        print("Писем от Телемоста: %d, из них новых конспектов с .txt: %d" % (from_domain, len(result)))
         return result
     finally:
         try:
