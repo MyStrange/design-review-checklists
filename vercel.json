@@ -1,0 +1,10 @@
+{
+  "builds": [
+    { "src": "docs/**", "use": "@vercel/static" }
+  ],
+  "routes": [
+    { "src": "/", "dest": "/docs/index.html" },
+    { "src": "/robots.txt", "dest": "/docs/robots.txt" },
+    { "src": "/(.*)", "dest": "/docs/$1" }
+  ]
+}
