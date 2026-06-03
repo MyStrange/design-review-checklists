@@ -1,0 +1,22 @@
+name: Test notification
+
+# Ручной запуск: отправляет тестовое сообщение в настроенный мессенджер,
+# чтобы проверить, что бот и chat_id заданы верно.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Тестовое сообщение
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          YANDEX_BOT_TOKEN: ${{ secrets.YANDEX_BOT_TOKEN }}
+          YANDEX_BOT_CHAT_ID: ${{ secrets.YANDEX_BOT_CHAT_ID }}
+        run: python -m src.notify --test "Проверка связи: бот чек-листов подключён ✅"

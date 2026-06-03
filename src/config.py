@@ -41,7 +41,12 @@ NAME_MAP = {
     "Петухов Глеб Игоревич": "Глеб П.",
 }
 
-# --- Яндекс Мессенджер (уведомления бота) ---
+# --- Уведомления о новом чек-листе ---
+NOTIFY_PROVIDER = os.environ.get("NOTIFY_PROVIDER", "telegram")  # telegram | yandex
+SITE_URL = os.environ.get("SITE_URL", "")
+# Telegram (создаётся без админа через @BotFather)
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
+# Яндекс Мессенджер (нужен админ Яндекс 360)
 YANDEX_BOT_TOKEN = os.environ.get("YANDEX_BOT_TOKEN", "")
 YANDEX_BOT_CHAT_ID = os.environ.get("YANDEX_BOT_CHAT_ID", "")
-SITE_URL = os.environ.get("SITE_URL", "")

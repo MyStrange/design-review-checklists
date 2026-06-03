@@ -35,6 +35,8 @@ jobs:
           YANDEX_USER: ${{ secrets.YANDEX_USER }}
           YANDEX_APP_PASSWORD: ${{ secrets.YANDEX_APP_PASSWORD }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           YANDEX_BOT_TOKEN: ${{ secrets.YANDEX_BOT_TOKEN }}
           YANDEX_BOT_CHAT_ID: ${{ secrets.YANDEX_BOT_CHAT_ID }}
           SITE_URL: ${{ secrets.SITE_URL }}

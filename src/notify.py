@@ -1,12 +1,12 @@
-"""Уведомления в Яндекс Мессенджер через Bot API.
+"""Уведомления о новом чек-листе в мессенджер.
 
-При появлении нового чек-листа шлёт короткое сообщение в чат.
+По умолчанию — Telegram (бот создаётся без админа через @BotFather).
+Можно переключить на Яндекс Мессенджер переменной NOTIFY_PROVIDER=yandex.
 Только стандартная библиотека Python.
-Док: https://yandex.com/support/yandex-360/business/admin/ru/messenger/bot-platform
 
-Полезные команды для настройки:
-  python -m src.notify --updates        # показать getUpdates (узнать chat_id чата)
-  python -m src.notify --test "привет"  # отправить тестовое сообщение в chat_id
+Полезные команды:
+  python -m src.notify --updates        # показать getUpdates (узнать chat_id)
+  python -m src.notify --test "привет"  # отправить тестовое сообщение
 """
 import argparse
 import json
@@ -16,39 +16,78 @@ from datetime import datetime
 
 from . import config
 
-API_BASE = "https://botapi.messenger.yandex.net/bot/v1"
 RU_MONTHS = ["января", "февраля", "марта", "апреля", "мая", "июня",
              "июля", "августа", "сентября", "октября", "ноября", "декабря"]
 
 
-def _post(path, payload):
-    if not config.YANDEX_BOT_TOKEN:
-        raise RuntimeError("Не задан YANDEX_BOT_TOKEN")
-    data = json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(
-        API_BASE + path, data=data,
-        headers={"Authorization": "OAuth " + config.YANDEX_BOT_TOKEN,
-                 "Content-Type": "application/json"},
-    )
+def _http(url, payload=None, headers=None):
+    data = json.dumps(payload).encode("utf-8") if payload is not None else None
+    req = urllib.request.Request(url, data=data, headers=headers or {})
     with urllib.request.urlopen(req, timeout=30) as r:
         return r.status, r.read().decode("utf-8", "replace")
 
 
-def send_text(text):
-    """Отправляет текст в настроенный чат. Тихо пропускает, если бот не настроен."""
-    if not config.YANDEX_BOT_TOKEN or not config.YANDEX_BOT_CHAT_ID:
-        print("Мессенджер не настроен (нет токена/chat_id) — уведомление пропущено.")
+# ---------- Telegram ----------
+def _tg_url(method):
+    return "https://api.telegram.org/bot%s/%s" % (config.TELEGRAM_BOT_TOKEN, method)
+
+
+def _tg_send(text):
+    if not config.TELEGRAM_BOT_TOKEN or not config.TELEGRAM_CHAT_ID:
+        print("Telegram не настроен (нет токена/chat_id) — уведомление пропущено.")
         return False
+    payload = {"chat_id": config.TELEGRAM_CHAT_ID, "text": text,
+               "disable_web_page_preview": False}
     try:
-        status, _ = _post("/messages/sendText/",
-                           {"text": text, "chat_id": config.YANDEX_BOT_CHAT_ID})
-        print("Мессенджер: отправлено (HTTP %s)" % status)
+        status, _ = _http(_tg_url("sendMessage"), payload, {"Content-Type": "application/json"})
+        print("Telegram: отправлено (HTTP %s)" % status)
         return True
     except urllib.error.HTTPError as e:
-        print("Мессенджер: ошибка HTTP %s: %s" % (e.code, e.read().decode("utf-8", "replace")))
+        print("Telegram: ошибка HTTP %s: %s" % (e.code, e.read().decode("utf-8", "replace")))
     except Exception as e:
-        print("Мессенджер: ошибка: %s" % e)
+        print("Telegram: ошибка: %s" % e)
     return False
+
+
+def _tg_updates():
+    return _http(_tg_url("getUpdates"))
+
+
+# ---------- Яндекс Мессенджер ----------
+_YA_BASE = "https://botapi.messenger.yandex.net/bot/v1"
+
+
+def _ya_headers():
+    return {"Authorization": "OAuth " + config.YANDEX_BOT_TOKEN, "Content-Type": "application/json"}
+
+
+def _ya_send(text):
+    if not config.YANDEX_BOT_TOKEN or not config.YANDEX_BOT_CHAT_ID:
+        print("Яндекс Мессенджер не настроен — уведомление пропущено.")
+        return False
+    try:
+        status, _ = _http(_YA_BASE + "/messages/sendText/",
+                          {"text": text, "chat_id": config.YANDEX_BOT_CHAT_ID}, _ya_headers())
+        print("Яндекс Мессенджер: отправлено (HTTP %s)" % status)
+        return True
+    except urllib.error.HTTPError as e:
+        print("Яндекс: ошибка HTTP %s: %s" % (e.code, e.read().decode("utf-8", "replace")))
+    except Exception as e:
+        print("Яндекс: ошибка: %s" % e)
+    return False
+
+
+def _ya_updates():
+    return _http(_YA_BASE + "/messages/getUpdates/", {"limit": 100, "offset": 0}, _ya_headers())
+
+
+# ---------- общий слой ----------
+def _provider():
+    return config.NOTIFY_PROVIDER.lower()
+
+
+def send_text(text):
+    return _ya_send(text) if _provider() == "yandex" else _tg_send(text)
 
 
 def _fmt_date(iso):
@@ -74,16 +113,15 @@ def notify_new_session(session):
 
 
 def _cli():
-    ap = argparse.ArgumentParser(description="Уведомления в Яндекс Мессенджер")
-    ap.add_argument("--updates", action="store_true",
-                    help="показать getUpdates — чтобы узнать chat_id чата")
-    ap.add_argument("--test", metavar="TEXT", help="отправить тестовое сообщение в chat_id")
+    ap = argparse.ArgumentParser(description="Уведомления о новом чек-листе")
+    ap.add_argument("--updates", action="store_true", help="показать getUpdates (узнать chat_id)")
+    ap.add_argument("--test", metavar="TEXT", help="отправить тестовое сообщение")
     args = ap.parse_args()
 
     if args.updates:
         try:
-            status, body = _post("/messages/getUpdates/", {"limit": 100, "offset": 0})
-            print("HTTP", status)
+            status, body = _ya_updates() if _provider() == "yandex" else _tg_updates()
+            print("provider:", _provider(), "| HTTP", status)
             try:
                 print(json.dumps(json.loads(body), ensure_ascii=False, indent=2))
             except Exception:
