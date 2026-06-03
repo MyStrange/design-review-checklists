@@ -41,8 +41,8 @@ jobs:
 
       - name: Закоммитить изменения
         run: |
-          git config user.name "checklists-bot"
-          git config user.email "checklists-bot@users.noreply.github.com"
+          git config user.name "MyStrange"
+          git config user.email "18186386+MyStrange@users.noreply.github.com"
           git add data/checklists.json docs/
           if git diff --cached --quiet; then
             echo "Изменений нет."
