@@ -43,7 +43,7 @@ NAME_MAP = {
 
 # --- Уведомления о новом чек-листе ---
 NOTIFY_PROVIDER = os.environ.get("NOTIFY_PROVIDER", "telegram")  # telegram | yandex
-SITE_URL = os.environ.get("SITE_URL", "")
+SITE_URL = os.environ.get("SITE_URL", "https://design-review-checklists-git-main-shsbs.vercel.app")
 # Telegram (создаётся без админа через @BotFather)
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "-4161949965")  # группа «Дизайн Записи»
