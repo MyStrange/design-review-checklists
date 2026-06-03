@@ -33,12 +33,14 @@ def _tg_url(method):
     return "https://api.telegram.org/bot%s/%s" % (config.TELEGRAM_BOT_TOKEN, method)
 
 
-def _tg_send(text):
+def _tg_send(text, parse_mode=None):
     if not config.TELEGRAM_BOT_TOKEN or not config.TELEGRAM_CHAT_ID:
         print("Telegram не настроен (нет токена/chat_id) — уведомление пропущено.")
         return False
     payload = {"chat_id": config.TELEGRAM_CHAT_ID, "text": text,
-               "disable_web_page_preview": False}
+               "disable_web_page_preview": True}
+    if parse_mode:
+        payload["parse_mode"] = parse_mode
     try:
         status, _ = _http(_tg_url("sendMessage"), payload, {"Content-Type": "application/json"})
         print("Telegram: отправлено (HTTP %s)" % status)
@@ -108,8 +110,10 @@ def _provider():
     return config.NOTIFY_PROVIDER.lower()
 
 
-def send_text(text):
-    return _ya_send(text) if _provider() == "yandex" else _tg_send(text)
+def send_text(text, parse_mode=None):
+    if _provider() == "yandex":
+        return _ya_send(text)
+    return _tg_send(text, parse_mode)
 
 
 def _fmt_date(iso):
@@ -204,6 +208,7 @@ def _cli():
     ap = argparse.ArgumentParser(description="Уведомления о новом чек-листе")
     ap.add_argument("--updates", action="store_true", help="показать getUpdates (узнать chat_id)")
     ap.add_argument("--test", metavar="TEXT", help="отправить тестовое сообщение")
+    ap.add_argument("--announce", action="store_true", help="отправить анонс с HTML-ссылкой")
     args = ap.parse_args()
 
     if args.updates:
@@ -227,6 +232,11 @@ def _cli():
         return
     if args.test is not None:
         send_text(args.test)
+        return
+    if args.announce:
+        msg = ('йесссссс, <a href="%s">го чекать</a>, кто несёт корону по количеству встреч 👑\n'
+               'буду присылать вам чеклисты дважды в неделю') % config.SITE_URL
+        send_text(msg, parse_mode="HTML")
         return
     ap.print_help()
 
