@@ -1,0 +1,21 @@
+name: Get chat id
+
+# Ручной запуск: через бота (getUpdates) показывает chat_id чатов в логах.
+# Нужно: добавить TELEGRAM_BOT_TOKEN в секреты, добавить бота в группу
+# и написать там сообщение со слэшем (напр. /id), затем запустить этот workflow.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  chatid:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: getUpdates
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          YANDEX_BOT_TOKEN: ${{ secrets.YANDEX_BOT_TOKEN }}
+        run: python -m src.notify --updates

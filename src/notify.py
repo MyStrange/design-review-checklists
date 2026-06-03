@@ -54,6 +54,24 @@ def _tg_updates():
     return _http(_tg_url("getUpdates"))
 
 
+def _tg_extract_chats(body):
+    """Вытаскивает chat_id и название чата из ответа Telegram getUpdates."""
+    try:
+        d = json.loads(body)
+    except Exception:
+        return []
+    chats = {}
+    for u in d.get("result", []):
+        for key in ("message", "edited_message", "channel_post",
+                    "my_chat_member", "chat_member", "chat_join_request"):
+            obj = u.get(key)
+            if isinstance(obj, dict):
+                ch = obj.get("chat")
+                if isinstance(ch, dict) and ch.get("id") is not None:
+                    chats[ch["id"]] = ch.get("title") or ch.get("username") or ch.get("type") or ""
+    return list(chats.items())
+
+
 # ---------- Яндекс Мессенджер ----------
 _YA_BASE = "https://botapi.messenger.yandex.net/bot/v1"
 
@@ -193,6 +211,14 @@ def _cli():
                 print(json.dumps(json.loads(body), ensure_ascii=False, indent=2))
             except Exception:
                 print(body)
+            if _provider() != "yandex":
+                print("\n=== НАЙДЕННЫЕ CHAT_ID ===")
+                found = _tg_extract_chats(body)
+                if found:
+                    for cid, title in found:
+                        print("  chat_id: %s  |  %s" % (cid, title))
+                else:
+                    print("  (пусто — напиши в группе сообщение со слэшем, напр. /id, и повтори)")
         except urllib.error.HTTPError as e:
             print("Ошибка HTTP %s: %s" % (e.code, e.read().decode("utf-8", "replace")))
         return
