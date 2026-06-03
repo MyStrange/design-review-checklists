@@ -40,3 +40,8 @@ NAME_MAP = {
     "Лисунова Карина Игоревна": "Кариша",
     "Петухов Глеб Игоревич": "Глеб П.",
 }
+
+# --- Яндекс Мессенджер (уведомления бота) ---
+YANDEX_BOT_TOKEN = os.environ.get("YANDEX_BOT_TOKEN", "")
+YANDEX_BOT_CHAT_ID = os.environ.get("YANDEX_BOT_CHAT_ID", "")
+SITE_URL = os.environ.get("SITE_URL", "")

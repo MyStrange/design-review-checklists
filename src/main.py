@@ -12,7 +12,7 @@ import json
 import sys
 from datetime import datetime
 
-from . import build, config, fetch, llm
+from . import build, config, fetch, llm, notify
 
 WEEKDAYS = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"]
 
@@ -91,11 +91,14 @@ def run_fetch():
     data = load_data()
     new_items = fetch.fetch_new_reviews(set(data["processed_uids"]))
     print("Новых писем-конспектов: %d" % len(new_items))
+    new_sessions = []
     for item in new_items:
         print("  UID %s — %s" % (item["uid"], item["subject"]))
-        process(item, data)
+        new_sessions.append(process(item, data))
     save_data(data)
     build.build_site(data)
+    for s in new_sessions:
+        notify.notify_new_session(s)
     print("Готово.")
 
 

@@ -35,6 +35,9 @@ jobs:
           YANDEX_USER: ${{ secrets.YANDEX_USER }}
           YANDEX_APP_PASSWORD: ${{ secrets.YANDEX_APP_PASSWORD }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          YANDEX_BOT_TOKEN: ${{ secrets.YANDEX_BOT_TOKEN }}
+          YANDEX_BOT_CHAT_ID: ${{ secrets.YANDEX_BOT_CHAT_ID }}
+          SITE_URL: ${{ secrets.SITE_URL }}
           # необязательные переопределения:
           # GEMINI_MODEL, LLM_PROVIDER, REVIEW_SENDER, SUBJECT_MUST_CONTAIN
         run: python -m src.main
