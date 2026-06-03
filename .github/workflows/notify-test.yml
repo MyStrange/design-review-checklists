@@ -19,4 +19,5 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           YANDEX_BOT_TOKEN: ${{ secrets.YANDEX_BOT_TOKEN }}
           YANDEX_BOT_CHAT_ID: ${{ secrets.YANDEX_BOT_CHAT_ID }}
-        run: python -m src.notify --test "Проверка связи: бот чек-листов подключён ✅"
+        run: |
+          python -m src.notify --test "Бот чек-листов на связи ✅"
