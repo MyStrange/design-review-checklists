@@ -20,10 +20,10 @@ CSS = """
 body { background: #DCE4EF; font-family: 'Golos Text', sans-serif; font-size: 15px; line-height: 1.5; min-height: 100vh; display: flex; color: #1a1a1a; }
 .sidebar { width: 250px; flex-shrink: 0; background: #fff; padding: 24px 0; display: flex; flex-direction: column; position: fixed; top: 0; left: 0; bottom: 0; overflow-y: auto; }
 .mode-toggle { display: flex; gap: 4px; margin: 0 16px 16px; background: #DCE4EF; border-radius: 8px; padding: 3px; }
-.mode-btn { flex: 1; text-align: center; font-size: 14px; font-weight: 600; padding: 7px 4px; border-radius: 6px; cursor: pointer; color: #555; border: none; background: transparent; font-family: inherit; transition: all .12s; }
+.mode-btn { flex: 1; text-align: left; font-size: 14px; font-weight: 600; padding: 7px 11px; border-radius: 6px; cursor: pointer; color: #555; border: none; background: transparent; font-family: inherit; transition: all .12s; }
 .mode-btn.active { background: #fff; color: #1a1a1a; }
 .sidebar-title { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #bbb; padding: 0 20px; margin-bottom: 12px; }
-.nav-item { margin: 1px 10px; padding: 9px 14px; border-radius: 10px; cursor: pointer; transition: background .12s; }
+.nav-item { margin: 1px 16px; padding: 9px 14px; border-radius: 10px; cursor: pointer; transition: background .12s; }
 .nav-item:hover { background: #fafafa; }
 .nav-item.active { background: #E6ECF4; }
 .nav-item.active .nav-main { color: #1a1a1a; }
@@ -37,8 +37,8 @@ body { background: #DCE4EF; font-family: 'Golos Text', sans-serif; font-size: 15
 .session-header { margin-bottom: 28px; }
 .session-meta { font-size: 12px; color: #999; margin-bottom: 6px; letter-spacing: 0.04em; }
 h1 { font-size: 60px; font-weight: 600; color: #1a1a1a; letter-spacing: -0.02em; line-height: 1.05; }
-.crown svg { height: 16px; vertical-align: middle; margin-left: 5px; }
-.crown-h1 svg { height: 44px; vertical-align: middle; margin-left: 12px; }
+.crown svg { height: 15px; vertical-align: middle; margin-left: 5px; position: relative; top: -1px; }
+.crown-h1 svg { height: 40px; vertical-align: baseline; margin-left: 12px; }
 .status-badge { display: inline-block; margin-top: 14px; font-size: 12px; font-weight: 600; color: #fff; padding: 5px 11px; border-radius: 6px; }
 .st-king { background: #6C4BB6; }
 .st-product { background: #9b59b6; }
@@ -120,23 +120,9 @@ const maxMeetings = designerNames.length ? Math.max(...designerNames.map(meeting
 function isTop(n){ return maxMeetings>=2 && meetingsOf(n)===maxMeetings; }
 // шуточный статус, виден при открытии дизайнера
 function designerStatus(n){
-  const mc=meetingsOf(n);
-  if(isTop(n)) return {t:'Король ревью — приходит чаще всех', c:'st-king'};
-  const cnt={};
-  DIDX[n].forEach(e=> e.project.tasks.forEach(t=>{ if(t.tag && t.tag!=='ux') cnt[t.tag]=(cnt[t.tag]||0)+1; }));
-  const projCount=DIDX[n].length;
-  const meets=designerNames.map(meetingsOf).sort((a,b)=>b-a);
-  const second=meets.length>1?meets[1]:0;
-  if((cnt.seo||0)>0) return {t:'🔍 SEO-душа', c:'st-seo'};
-  if((cnt.legal||0)>0) return {t:'⚖️ На короткой ноге с юристами', c:'st-legal'};
-  if((cnt.branding||0)>0) return {t:'🎯 Хранитель бренда', c:'st-brand'};
-  if(mc>=2 && mc===second) return {t:'🥈 Правая рука короля', c:'st-second'};
-  if(mc===1) return {t:'✨ Редкий гость — каждый раз как праздник', c:'st-rare'};
-  if(((cnt.product||0)+(cnt.discuss||0))>=2) return {t:'🧭 Частый гость продакта', c:'st-product'};
-  if((cnt.dev||0)>0) return {t:'🛠 Дружит с разработкой', c:'st-dev'};
-  if(projCount>=6) return {t:'🎚 Многостаночник — много проектов', c:'st-multi'};
-  if(mc>=3) return {t:'🔥 Завсегдатай ревью', c:'st-regular'};
-  return {t:'🎨 Пиксель-перфекционист', c:'st-ux'};
+  if(!isTop(n)) return null;
+  const q=(DATA.genders||{})[n]==='f';
+  return {t:(q?'Королева':'Король')+' ревью — приходит чаще всех', c:'st-king'};
 }
 
 let mode='designers', sIdx=0, dIdx=0;
@@ -190,7 +176,8 @@ function renderMain(){
     if(!n){ elMain.innerHTML=emptyHTML(); return; }
     const crownH = isTop(n) ? ' <span class="crown-h1">'+CROWN+'</span>' : '';
     const st = designerStatus(n);
-    elMain.innerHTML = `<div class="session-header"><h1>${esc(n)}${crownH}</h1><div><span class="status-badge ${st.c}">${st.t}</span></div></div>`
+    const badge = st ? `<div><span class="status-badge ${st.c}">${st.t}</span></div>` : '';
+    elMain.innerHTML = `<div class="session-header"><h1>${esc(n)}${crownH}</h1>${badge}</div>`
       + DIDX[n].map(x=>cardHTML(x.project,x.dateLabel)).join('');
   }
 }
@@ -262,9 +249,17 @@ def _meta(iso, part, weekday):
     return "%s · Ревью %s" % (head, suffix)
 
 
+def _gender(full_name):
+    """Определяет пол по отчеству (…вна -> ж, иначе м)."""
+    parts = (full_name or "").strip().split()
+    last = parts[-1] if parts else ""
+    return "f" if last.endswith("на") else "m"
+
+
 def _to_data(sessions):
     """Преобразует наши данные в структуру, которую рендерит JS на странице."""
     out = []
+    genders = {}
     # новые встречи сверху
     ordered = sorted(sessions, key=lambda s: s.get("date") or "", reverse=True)
     for i, s in enumerate(ordered):
@@ -279,6 +274,7 @@ def _to_data(sessions):
             raw_name = d.get("name") or "Не указан"
             author = config.NAME_MAP.get(raw_name, raw_name)
             names.add(author)
+            genders[author] = _gender(raw_name)
             for pi, p in enumerate(d.get("projects", [])):
                 projects.append({
                     "id": "%s-%d-%d" % (sid, di, pi),
@@ -298,7 +294,7 @@ def _to_data(sessions):
             "designersCount": len([n for n in names if n]),
             "projects": projects,
         })
-    return {"sessions": out}
+    return {"sessions": out, "genders": genders}
 
 
 def build_html(data):
