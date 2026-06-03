@@ -46,7 +46,7 @@ NOTIFY_PROVIDER = os.environ.get("NOTIFY_PROVIDER", "telegram")  # telegram | ya
 SITE_URL = os.environ.get("SITE_URL", "")
 # Telegram (создаётся без админа через @BotFather)
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
-TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "-4161949965")  # группа «Дизайн Записи»
 # Яндекс Мессенджер (нужен админ Яндекс 360)
 YANDEX_BOT_TOKEN = os.environ.get("YANDEX_BOT_TOKEN", "")
 YANDEX_BOT_CHAT_ID = os.environ.get("YANDEX_BOT_CHAT_ID", "")

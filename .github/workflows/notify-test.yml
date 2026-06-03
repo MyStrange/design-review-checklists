@@ -16,7 +16,6 @@ jobs:
       - name: Тестовое сообщение
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           YANDEX_BOT_TOKEN: ${{ secrets.YANDEX_BOT_TOKEN }}
           YANDEX_BOT_CHAT_ID: ${{ secrets.YANDEX_BOT_CHAT_ID }}
         run: |
