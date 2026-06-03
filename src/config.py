@@ -50,3 +50,15 @@ TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 # Яндекс Мессенджер (нужен админ Яндекс 360)
 YANDEX_BOT_TOKEN = os.environ.get("YANDEX_BOT_TOKEN", "")
 YANDEX_BOT_CHAT_ID = os.environ.get("YANDEX_BOT_CHAT_ID", "")
+
+# Телеграм-логины дизайнеров (короткое имя -> @username) — для тегов в уведомлении.
+# Кого нет в карте — просто не тегаем.
+TELEGRAM_USERNAMES = {
+    "Костя": "@kosmatos_fx",
+    "Аня": "@anyagrigoreva",
+    "Ксюша": "@ks_pks",
+    "Глеб": "@bobilion",
+    "Глеб П.": "@gleb_baster",
+    "Кариша": "@karina_lisunova",
+    "Надя": "@My_Strange",
+}
