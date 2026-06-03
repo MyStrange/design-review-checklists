@@ -23,11 +23,11 @@ body { background: #DCE4EF; font-family: 'Golos Text', sans-serif; font-size: 15
 .mode-btn { flex: 1; text-align: center; font-size: 14px; font-weight: 600; padding: 7px 4px; border-radius: 6px; cursor: pointer; color: #555; border: none; background: transparent; font-family: inherit; transition: all .12s; }
 .mode-btn.active { background: #fff; color: #1a1a1a; }
 .sidebar-title { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #bbb; padding: 0 20px; margin-bottom: 12px; }
-.nav-item { padding: 10px 20px; cursor: pointer; transition: background .12s; border-left: 2px solid transparent; }
+.nav-item { margin: 1px 10px; padding: 9px 14px; border-radius: 10px; cursor: pointer; transition: background .12s; }
 .nav-item:hover { background: #fafafa; }
-.nav-item.active { border-left-color: transparent; background: #1A4E80; }
-.nav-item.active .nav-main { color: #fff; }
-.nav-item.active .nav-sub { color: rgba(255,255,255,.8); }
+.nav-item.active { background: #E6ECF4; }
+.nav-item.active .nav-main { color: #1a1a1a; }
+.nav-item.active .nav-sub { color: #7a8699; }
 .nav-main { font-size: 14px; font-weight: 600; color: #1a1a1a; }
 .nav-item:not(.active) .nav-main { color: #888; font-weight: 500; }
 .nav-sub { font-size: 12px; color: #bbb; margin-top: 1px; }
@@ -37,9 +37,10 @@ body { background: #DCE4EF; font-family: 'Golos Text', sans-serif; font-size: 15
 .session-header { margin-bottom: 28px; }
 .session-meta { font-size: 12px; color: #999; margin-bottom: 6px; letter-spacing: 0.04em; }
 h1 { font-size: 60px; font-weight: 600; color: #1a1a1a; letter-spacing: -0.02em; line-height: 1.05; }
-.crown-h1 { font-size: 34px; vertical-align: middle; }
+.crown svg { height: 16px; vertical-align: middle; margin-left: 5px; }
+.crown-h1 svg { height: 44px; vertical-align: middle; margin-left: 12px; }
 .status-badge { display: inline-block; margin-top: 14px; font-size: 12px; font-weight: 600; color: #fff; padding: 5px 11px; border-radius: 6px; }
-.st-king { background: #C99A2E; }
+.st-king { background: #6C4BB6; }
 .st-product { background: #9b59b6; }
 .st-dev { background: #3a7be0; }
 .st-seo { background: #2e9e6b; }
@@ -48,6 +49,8 @@ h1 { font-size: 60px; font-weight: 600; color: #1a1a1a; letter-spacing: -0.02em;
 .st-rare { background: #8a94a6; }
 .st-regular { background: #5a78b0; }
 .st-ux { background: #199AF0; }
+.st-second { background: #7E8BA3; }
+.st-multi { background: #2BA39A; }
 .card-date { font-size: 12px; font-weight: 600; color: #999; margin: 22px 0 8px 2px; }
 .card-date:first-child { margin-top: 0; }
 .project { background: #fff; border-radius: 20px; margin-bottom: 14px; overflow: hidden; }
@@ -88,7 +91,7 @@ h1 { font-size: 60px; font-weight: 600; color: #1a1a1a; letter-spacing: -0.02em;
   .sidebar-title { display: none; }
   #nav-list { display: flex; overflow-x: auto; gap: 4px; padding: 0 8px; }
   .nav-item { flex-shrink: 0; border-left: none; border-bottom: 2px solid transparent; padding: 6px 12px; border-radius: 8px; }
-  .nav-item.active { border-bottom-color: transparent; background: #1A4E80; }
+  .nav-item.active { background: #E6ECF4; }
   .main { margin-left: 0; padding: 24px 16px 80px; }
   h1 { font-size: 38px; }
 }
@@ -100,6 +103,7 @@ const STORAGE_KEY = 'review-state-v3';
 let state = (()=>{ try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch(e){ return {}; } })();
 const save = ()=> localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 const tagLabel = { dev:'Разработка', product:'Продакт', seo:'SEO', legal:'Юрист', branding:'Брендинг', discuss:'Продакт' };
+const CROWN = '<svg viewBox="0 0 576 512" fill="#F4B400" aria-hidden="true"><path d="M309 106c11.4-7 19-19.7 19-34c0-22.1-17.9-40-40-40s-40 17.9-40 40c0 14.4 7.6 27 19 34L209.7 220.6c-9.1 18.2-32.7 23.4-48.6 10.7L72 160c5-6.7 8-15 8-24c0-22.1-17.9-40-40-40S0 113.9 0 136s17.9 40 40 40c.2 0 .5 0 .7 0L86.4 427.4c5.5 30.4 32 52.6 63 52.6l277.2 0c30.9 0 57.4-22.1 63-52.6L535.3 176c.2 0 .5 0 .7 0c22.1 0 40-17.9 40-40s-17.9-40-40-40s-40 17.9-40 40c0 9 3 17.3 8 24l-89.1 71.3c-15.9 12.7-39.5 7.5-48.6-10.7L309 106z"/></svg>';
 
 function esc(s){ return (''+s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function plural(n,a,b,c){ const m=n%100, d=n%10; if(m>=11&&m<=14) return c; if(d===1) return a; if(d>=2&&d<=4) return b; return c; }
@@ -116,18 +120,21 @@ const maxMeetings = designerNames.length ? Math.max(...designerNames.map(meeting
 function isTop(n){ return maxMeetings>=2 && meetingsOf(n)===maxMeetings; }
 // шуточный статус, виден при открытии дизайнера
 function designerStatus(n){
-  if(isTop(n)) return {t:'Король ревью — приходит чаще всех', c:'st-king'};
   const mc=meetingsOf(n);
-  if(mc===1) return {t:'✨ Редкий гость — каждый раз как праздник', c:'st-rare'};
+  if(isTop(n)) return {t:'Король ревью — приходит чаще всех', c:'st-king'};
   const cnt={};
   DIDX[n].forEach(e=> e.project.tasks.forEach(t=>{ if(t.tag && t.tag!=='ux') cnt[t.tag]=(cnt[t.tag]||0)+1; }));
-  const prod=(cnt.product||0)+(cnt.discuss||0);
-  if(prod>=2) return {t:'🧭 Частый гость продакта', c:'st-product'};
-  const top=Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a])[0];
-  if(top==='dev') return {t:'🛠 Дружит с разработкой', c:'st-dev'};
-  if(top==='seo') return {t:'🔍 SEO-душа', c:'st-seo'};
-  if(top==='legal') return {t:'⚖️ На короткой ноге с юристами', c:'st-legal'};
-  if(top==='branding') return {t:'🎯 Хранитель бренда', c:'st-brand'};
+  const projCount=DIDX[n].length;
+  const meets=designerNames.map(meetingsOf).sort((a,b)=>b-a);
+  const second=meets.length>1?meets[1]:0;
+  if((cnt.seo||0)>0) return {t:'🔍 SEO-душа', c:'st-seo'};
+  if((cnt.legal||0)>0) return {t:'⚖️ На короткой ноге с юристами', c:'st-legal'};
+  if((cnt.branding||0)>0) return {t:'🎯 Хранитель бренда', c:'st-brand'};
+  if(mc>=2 && mc===second) return {t:'🥈 Правая рука короля', c:'st-second'};
+  if(mc===1) return {t:'✨ Редкий гость — каждый раз как праздник', c:'st-rare'};
+  if(((cnt.product||0)+(cnt.discuss||0))>=2) return {t:'🧭 Частый гость продакта', c:'st-product'};
+  if((cnt.dev||0)>0) return {t:'🛠 Дружит с разработкой', c:'st-dev'};
+  if(projCount>=6) return {t:'🎚 Многостаночник — много проектов', c:'st-multi'};
   if(mc>=3) return {t:'🔥 Завсегдатай ревью', c:'st-regular'};
   return {t:'🎨 Пиксель-перфекционист', c:'st-ux'};
 }
@@ -165,7 +172,7 @@ function renderNav(){
     if(!designerNames.length){ elNav.innerHTML='<div class="nav-empty">Нет дизайнеров</div>'; return; }
     elNav.innerHTML = designerNames.map((n,i)=>{
       const mc=meetingsOf(n);
-      const crown = isTop(n) ? ' <span class="crown">👑</span>' : '';
+      const crown = isTop(n) ? ' <span class="crown">'+CROWN+'</span>' : '';
       return `<div class="nav-item ${i===dIdx?'active':''}" onclick="selectDesigner(${i})">
         <div class="nav-main">${esc(n)}${crown}</div>
         <div class="nav-sub">${mc} ${plural(mc,'встреча','встречи','встреч')}</div></div>`;
@@ -181,7 +188,7 @@ function renderMain(){
   } else {
     const n=designerNames[dIdx];
     if(!n){ elMain.innerHTML=emptyHTML(); return; }
-    const crownH = isTop(n) ? ' <span class="crown-h1">👑</span>' : '';
+    const crownH = isTop(n) ? ' <span class="crown-h1">'+CROWN+'</span>' : '';
     const st = designerStatus(n);
     elMain.innerHTML = `<div class="session-header"><h1>${esc(n)}${crownH}</h1><div><span class="status-badge ${st.c}">${st.t}</span></div></div>`
       + DIDX[n].map(x=>cardHTML(x.project,x.dateLabel)).join('');
