@@ -51,7 +51,10 @@ def _tg_send(text):
 
 
 def _tg_updates():
-    return _http(_tg_url("getUpdates"))
+    return _http(_tg_url("getUpdates"),
+                 {"allowed_updates": ["message", "my_chat_member", "chat_member", "channel_post"],
+                  "limit": 100},
+                 {"Content-Type": "application/json"})
 
 
 def _tg_extract_chats(body):
