@@ -1,0 +1,25 @@
+name: Edit last bot message
+
+# Редактирует прошлый пост-чеклист бота (например, добавить забытую ссылку).
+# Как это работает:
+#   1) кто-то отвечает (reply) на нужный пост бота в группе — так бот узнаёт его номер;
+#   2) в репозиторий кладётся trigger/edit-last.txt с новым текстом → запускается этот workflow;
+#   3) бот находит номер по reply и редактирует пост (без оповещения).
+on:
+  push:
+    paths:
+      - "trigger/edit-last.txt"
+  workflow_dispatch: {}
+
+jobs:
+  edit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Отредактировать прошлый пост
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        run: python -m src.notify --edit-last

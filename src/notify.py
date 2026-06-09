@@ -77,6 +77,72 @@ def _tg_extract_chats(body):
     return list(chats.items())
 
 
+def _tg_get_me():
+    """id самого бота — чтобы точно опознать его собственные сообщения."""
+    try:
+        _, body = _http(_tg_url("getMe"), None, {"Content-Type": "application/json"})
+        return json.loads(body).get("result", {}).get("id")
+    except Exception:
+        return None
+
+
+def _find_edit_target(updates_body, bot_id):
+    """В ответах getUpdates ищем reply на сообщение-чеклист самого бота.
+    Возвращает (chat_id, message_id) исходного поста бота или None.
+    Берём самый свежий подходящий reply."""
+    try:
+        d = json.loads(updates_body)
+    except Exception:
+        return None
+    target = None
+    for u in d.get("result", []):
+        msg = u.get("message") or u.get("edited_message") or {}
+        rep = msg.get("reply_to_message")
+        if not isinstance(rep, dict):
+            continue
+        frm = rep.get("from") or {}
+        text = rep.get("text") or rep.get("caption") or ""
+        is_bot = frm.get("is_bot") and (bot_id is None or frm.get("id") == bot_id)
+        if is_bot or ("Чек-лист" in text):
+            chat = rep.get("chat") or msg.get("chat") or {}
+            if chat.get("id") is not None and rep.get("message_id") is not None:
+                target = (chat["id"], rep["message_id"])  # перезаписываем — нужен последний
+    return target
+
+
+def _tg_edit(chat_id, message_id, text):
+    payload = {"chat_id": chat_id, "message_id": message_id, "text": text,
+               "disable_web_page_preview": True}
+    try:
+        status, body = _http(_tg_url("editMessageText"), payload,
+                             {"Content-Type": "application/json"})
+        print("Telegram editMessageText: HTTP %s" % status)
+        return True
+    except urllib.error.HTTPError as e:
+        print("Telegram edit: ошибка HTTP %s: %s" % (e.code, e.read().decode("utf-8", "replace")))
+    except Exception as e:
+        print("Telegram edit: ошибка: %s" % e)
+    return False
+
+
+def edit_last_checklist(new_text):
+    """Редактирует прошлое сообщение-чеклист бота. Чтобы найти его номер, нужно,
+    чтобы кто-то ответил (reply) на тот пост в группе — этот reply виден боту."""
+    bot_id = _tg_get_me()
+    try:
+        _, body = _tg_updates()
+    except urllib.error.HTTPError as e:
+        print("getUpdates HTTP %s: %s" % (e.code, e.read().decode("utf-8", "replace")))
+        return False
+    target = _find_edit_target(body, bot_id)
+    if not target:
+        print("Не нашёл reply на сообщение бота. Нужно ответить «.» на тот пост в группе и повторить.")
+        return False
+    cid, mid = target
+    print("Цель найдена: chat_id=%s, message_id=%s" % (cid, mid))
+    return _tg_edit(cid, mid, new_text)
+
+
 # ---------- Яндекс Мессенджер ----------
 _YA_BASE = "https://botapi.messenger.yandex.net/bot/v1"
 
@@ -210,7 +276,14 @@ def _cli():
     ap.add_argument("--updates", action="store_true", help="показать getUpdates (узнать chat_id)")
     ap.add_argument("--test", metavar="TEXT", help="отправить тестовое сообщение")
     ap.add_argument("--announce", action="store_true", help="отправить анонс с HTML-ссылкой")
+    ap.add_argument("--edit-last", action="store_true",
+                    help="отредактировать прошлый пост-чеклист (текст из trigger/edit-last.txt)")
     args = ap.parse_args()
+
+    if args.edit_last:
+        new_text = (config.ROOT / "trigger" / "edit-last.txt").read_text(encoding="utf-8").strip("\n")
+        edit_last_checklist(new_text)
+        return
 
     if args.updates:
         try:
