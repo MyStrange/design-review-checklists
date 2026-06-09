@@ -196,8 +196,9 @@ def notify_new_session(session):
         head += " (%s)" % extra
     lines = [random.choice(PHRASES), "", head,
              "Дизайнеров: %d · правок: %d" % (len(designers), n_items)]
-    if config.SITE_URL:
-        lines.append(config.SITE_URL)
+    # Ссылка на актуальный сайт — обязательна в КАЖДОМ сообщении.
+    # config.SITE_URL гарантированно непустой (есть значение по умолчанию).
+    lines.append(config.SITE_URL or "https://design-review-checklists-git-main-shsbs.vercel.app")
     mentions = _mentions(session)
     if mentions:
         lines += ["", " ".join(mentions)]

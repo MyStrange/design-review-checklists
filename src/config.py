@@ -99,6 +99,30 @@ def _detect_gender(full_name):
     return "m"
 
 
+# Окончания фамилий — чтобы автоматически отличить фамилию от имени у новых людей.
+_SURNAME_SUFFIXES = ("ов", "ёв", "ев", "ова", "ёва", "ева", "ин", "ын", "ина",
+                     "ына", "ский", "ская", "цкий", "цкая", "ской", "енко",
+                     "ук", "юк", "ян", "дзе", "швили", "iй")
+
+
+def _derive_short(full_name):
+    """Авто-короткое имя для тех, кого ещё нет в NAME_MAP: «Имя Ф.».
+    Детерминированно (не зависит от порядка слов), чтобы один человек не двоился."""
+    parts = [p for p in (full_name or "").replace(".", " ").split()
+             if p and not _is_patronymic(p)]
+    if not parts:
+        return (full_name or "").strip()
+    cap = lambda w: w[:1].upper() + w[1:]
+    if len(parts) == 1:
+        return cap(parts[0])
+    # фамилия = самый длинный токен с «фамильным» окончанием, иначе просто самый длинный
+    surn_cands = [p for p in parts if p.lower().endswith(_SURNAME_SUFFIXES)] or parts
+    surname = max(surn_cands, key=len)
+    given_cands = [p for p in parts if p != surname] or parts
+    given = min(given_cands, key=len)
+    return "%s %s." % (cap(given), surname[:1].upper())
+
+
 # Индексы строятся из NAME_MAP (ключи — полные ФИО с отчеством, формат надёжный).
 _SHORT_BY_KEY = {_name_key(full): short for full, short in NAME_MAP.items()}
 _GENDER_BY_KEY = {_name_key(full): _detect_gender(full) for full in NAME_MAP}
@@ -106,10 +130,13 @@ _GENDER_BY_KEY = {_name_key(full): _detect_gender(full) for full in NAME_MAP}
 
 def short_name(full_name):
     """Короткое отображаемое имя по любому варианту записи ФИО.
-    Неизвестного человека возвращаем как есть (чтобы он всё равно появился)."""
+    Известных берём из NAME_MAP; новых — авто («Имя Ф.»), чтобы не было дублей
+    и не требовалось ничего дописывать руками."""
+    if not (full_name or "").strip() or full_name == "Не указан":
+        return "Не указан"
     return (NAME_MAP.get(full_name)
             or _SHORT_BY_KEY.get(_name_key(full_name))
-            or full_name)
+            or _derive_short(full_name))
 
 
 def gender(full_name):
