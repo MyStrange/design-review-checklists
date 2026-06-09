@@ -178,7 +178,7 @@ def _mentions(session):
     """@username тех дизайнеров, кто был на этом ревью (по карте логинов)."""
     out, seen = [], set()
     for d in session.get("designers", []):
-        short = config.NAME_MAP.get(d.get("name", ""), d.get("name", ""))
+        short = config.short_name(d.get("name", ""))
         uname = config.TELEGRAM_USERNAMES.get(short)
         if uname and uname not in seen:
             seen.add(uname)

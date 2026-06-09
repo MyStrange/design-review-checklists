@@ -249,13 +249,6 @@ def _meta(iso, part, weekday):
     return "%s · Ревью %s" % (head, suffix)
 
 
-def _gender(full_name):
-    """Определяет пол по отчеству (…вна -> ж, иначе м)."""
-    parts = (full_name or "").strip().split()
-    last = parts[-1] if parts else ""
-    return "f" if last.endswith("на") else "m"
-
-
 def _to_data(sessions):
     """Преобразует наши данные в структуру, которую рендерит JS на странице."""
     out = []
@@ -272,9 +265,9 @@ def _to_data(sessions):
         names = set()
         for di, d in enumerate(s.get("designers", [])):
             raw_name = d.get("name") or "Не указан"
-            author = config.NAME_MAP.get(raw_name, raw_name)
+            author = config.short_name(raw_name)
             names.add(author)
-            genders[author] = _gender(raw_name)
+            genders[author] = config.gender(raw_name)
             for pi, p in enumerate(d.get("projects", [])):
                 projects.append({
                     "id": "%s-%d-%d" % (sid, di, pi),

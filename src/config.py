@@ -43,7 +43,9 @@ NAME_MAP = {
 
 # --- Уведомления о новом чек-листе ---
 NOTIFY_PROVIDER = os.environ.get("NOTIFY_PROVIDER", "telegram")  # telegram | yandex
-SITE_URL = os.environ.get("SITE_URL", "https://design-review-checklists-git-main-shsbs.vercel.app")
+# .get(...) or default — чтобы пустой секрет SITE_URL в GitHub Actions
+# не затирал адрес и ссылка всегда попадала в уведомление.
+SITE_URL = os.environ.get("SITE_URL") or "https://design-review-checklists-git-main-shsbs.vercel.app"
 # Telegram (создаётся без админа через @BotFather)
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "-4161949965")  # группа «Дизайн Записи»
@@ -62,3 +64,54 @@ TELEGRAM_USERNAMES = {
     "Кариша": "@karina_lisunova",
     "Надя": "@My_Strange",
 }
+
+
+# --- Устойчивое сопоставление имён ---
+# Нейросеть может выдать имя в любом виде: «Григорьева Анна Сергеевна»,
+# «Анна Григорьева», «Анна Сергеевна Григорьева». Чтобы один и тот же человек
+# не плодился как несколько «дизайнеров», сопоставляем по набору значимых частей
+# имени (фамилия + имя), игнорируя отчество и порядок слов.
+
+def _is_patronymic(token):
+    """Отчество: …вич / …вна / …чна. («Анна», «Карина» не считаются.)"""
+    t = token.lower()
+    return t.endswith("ич") or t.endswith("вна") or t.endswith("чна")
+
+
+def _name_key(full_name):
+    """Множество частей имени без отчества — одинаково при любом порядке слов."""
+    parts = (full_name or "").replace(".", " ").split()
+    return frozenset(p.lower() for p in parts if p and not _is_patronymic(p))
+
+
+def _detect_gender(full_name):
+    """Пол по отчеству, а если его нет — по окончанию фамилии."""
+    parts = (full_name or "").replace(".", " ").split()
+    for p in parts:
+        pl = p.lower()
+        if pl.endswith("вна") or pl.endswith("чна"):
+            return "f"
+        if pl.endswith("ич"):
+            return "m"
+    for p in parts:
+        if p.lower().endswith(("ова", "ева", "ина", "ская", "ая")):
+            return "f"
+    return "m"
+
+
+# Индексы строятся из NAME_MAP (ключи — полные ФИО с отчеством, формат надёжный).
+_SHORT_BY_KEY = {_name_key(full): short for full, short in NAME_MAP.items()}
+_GENDER_BY_KEY = {_name_key(full): _detect_gender(full) for full in NAME_MAP}
+
+
+def short_name(full_name):
+    """Короткое отображаемое имя по любому варианту записи ФИО.
+    Неизвестного человека возвращаем как есть (чтобы он всё равно появился)."""
+    return (NAME_MAP.get(full_name)
+            or _SHORT_BY_KEY.get(_name_key(full_name))
+            or full_name)
+
+
+def gender(full_name):
+    """Пол ('f'/'m'). Для известных людей берём из справочника, иначе — эвристика."""
+    return _GENDER_BY_KEY.get(_name_key(full_name)) or _detect_gender(full_name)
