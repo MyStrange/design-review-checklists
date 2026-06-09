@@ -28,28 +28,72 @@ def _http(url, payload=None, headers=None):
         return r.status, r.read().decode("utf-8", "replace")
 
 
+# ---------- Журнал отправленных сообщений (чтобы потом их редактировать) ----------
+SENT_FILE = config.ROOT / "data" / "sent_messages.json"
+
+
+def _load_sent():
+    try:
+        return json.loads(SENT_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+
+
+def _record_sent(chat_id, message_id, kind, text):
+    """Запоминаем message_id отправленного боту сообщения — для будущего редактирования."""
+    items = _load_sent()
+    items.append({
+        "chat_id": chat_id,
+        "message_id": message_id,
+        "kind": kind,
+        "ts": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "preview": (text or "").strip().replace("\n", " ")[:80],
+    })
+    SENT_FILE.parent.mkdir(parents=True, exist_ok=True)
+    SENT_FILE.write_text(json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def last_sent(kind=None):
+    """Последнее отправленное сообщение (опционально нужного типа) из журнала."""
+    items = _load_sent()
+    if kind:
+        items = [m for m in items if m.get("kind") == kind] or items
+    return items[-1] if items else None
+
+
 # ---------- Telegram ----------
 def _tg_url(method):
     return "https://api.telegram.org/bot%s/%s" % (config.TELEGRAM_BOT_TOKEN, method)
 
 
-def _tg_send(text, parse_mode=None):
+def _tg_send(text, parse_mode=None, silent=False, kind="message"):
+    """Отправляет сообщение. Возвращает message_id (int) или None.
+    silent=True — без звука/пуша. Каждый успешный отправленный id пишем в журнал."""
     if not config.TELEGRAM_BOT_TOKEN or not config.TELEGRAM_CHAT_ID:
         print("Telegram не настроен (нет токена/chat_id) — уведомление пропущено.")
-        return False
+        return None
     payload = {"chat_id": config.TELEGRAM_CHAT_ID, "text": text,
                "disable_web_page_preview": True}
     if parse_mode:
         payload["parse_mode"] = parse_mode
+    if silent:
+        payload["disable_notification"] = True
     try:
-        status, _ = _http(_tg_url("sendMessage"), payload, {"Content-Type": "application/json"})
-        print("Telegram: отправлено (HTTP %s)" % status)
-        return True
+        status, body = _http(_tg_url("sendMessage"), payload, {"Content-Type": "application/json"})
+        mid = None
+        try:
+            mid = json.loads(body).get("result", {}).get("message_id")
+        except Exception:
+            pass
+        print("Telegram: отправлено (HTTP %s), message_id=%s" % (status, mid))
+        if mid is not None:
+            _record_sent(config.TELEGRAM_CHAT_ID, mid, kind, text)
+        return mid
     except urllib.error.HTTPError as e:
         print("Telegram: ошибка HTTP %s: %s" % (e.code, e.read().decode("utf-8", "replace")))
     except Exception as e:
         print("Telegram: ошибка: %s" % e)
-    return False
+    return None
 
 
 def _tg_updates():
@@ -143,6 +187,18 @@ def edit_last_checklist(new_text):
     return _tg_edit(cid, mid, new_text)
 
 
+def edit_stored(new_text, kind=None):
+    """Редактирует последнее сообщение бота по СОХРАНЁННОМУ id из журнала —
+    ничего отвечать в чате не нужно. Если в журнале пусто (старые сообщения,
+    отправленные до появления журнала) — откатываемся на поиск по reply."""
+    rec = last_sent(kind)
+    if rec and rec.get("message_id") is not None:
+        print("Редактирую по журналу: message_id=%s (%s)" % (rec["message_id"], rec.get("preview", "")))
+        return _tg_edit(rec["chat_id"], rec["message_id"], new_text)
+    print("В журнале нет сохранённых сообщений — пробую найти по ответу в чате.")
+    return edit_last_checklist(new_text)
+
+
 # ---------- Яндекс Мессенджер ----------
 _YA_BASE = "https://botapi.messenger.yandex.net/bot/v1"
 
@@ -176,10 +232,10 @@ def _provider():
     return config.NOTIFY_PROVIDER.lower()
 
 
-def send_text(text, parse_mode=None):
+def send_text(text, parse_mode=None, silent=False, kind="message"):
     if _provider() == "yandex":
         return _ya_send(text)
-    return _tg_send(text, parse_mode)
+    return _tg_send(text, parse_mode, silent=silent, kind=kind)
 
 
 def _fmt_date(iso):
@@ -268,7 +324,8 @@ def notify_new_session(session):
     mentions = _mentions(session)
     if mentions:
         lines += ["", " ".join(mentions)]
-    send_text("\n".join(lines))
+    # kind="checklist" — чтобы потом можно было найти и отредактировать этот пост по id
+    send_text("\n".join(lines), kind="checklist")
 
 
 def _cli():
@@ -277,12 +334,19 @@ def _cli():
     ap.add_argument("--test", metavar="TEXT", help="отправить тестовое сообщение")
     ap.add_argument("--announce", action="store_true", help="отправить анонс с HTML-ссылкой")
     ap.add_argument("--edit-last", action="store_true",
-                    help="отредактировать прошлый пост-чеклист (текст из trigger/edit-last.txt)")
+                    help="отредактировать прошлый пост по сохранённому id (текст из trigger/edit-last.txt)")
+    ap.add_argument("--send-silent", action="store_true",
+                    help="отправить текст из trigger/send.txt без звука (disable_notification)")
     args = ap.parse_args()
 
     if args.edit_last:
         new_text = (config.ROOT / "trigger" / "edit-last.txt").read_text(encoding="utf-8").strip("\n")
-        edit_last_checklist(new_text)
+        edit_stored(new_text, kind="checklist")
+        return
+
+    if args.send_silent:
+        text = (config.ROOT / "trigger" / "send.txt").read_text(encoding="utf-8").strip("\n")
+        send_text(text, silent=True, kind="manual")
         return
 
     if args.updates:
