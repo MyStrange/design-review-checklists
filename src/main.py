@@ -89,6 +89,8 @@ def process(item, data):
 
 def run_fetch():
     data = load_data()
+    # корона ДО новых встреч — чтобы заметить, если лидер сменится
+    before_counts, _ = notify.standings(data["sessions"])
     new_items = fetch.fetch_new_reviews(set(data["processed_uids"]))
     print("Новых писем-конспектов: %d" % len(new_items))
     new_sessions = []
@@ -97,8 +99,12 @@ def run_fetch():
         new_sessions.append(process(item, data))
     save_data(data)
     build.build_site(data)
-    for s in new_sessions:
-        notify.notify_new_session(s)
+    # корона ПОСЛЕ — если сменилась, добавим классную строку в последнее уведомление
+    after_counts, genders = notify.standings(data["sessions"])
+    crown_note = notify.crown_change_note(before_counts, after_counts, genders)
+    for i, s in enumerate(new_sessions):
+        note = crown_note if i == len(new_sessions) - 1 else None
+        notify.notify_new_session(s, crown_note=note)
     print("Готово.")
 
 

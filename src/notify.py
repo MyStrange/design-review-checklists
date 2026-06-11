@@ -308,8 +308,72 @@ def _mentions(session):
     return out
 
 
-def notify_new_session(session):
-    """Шлёт уведомление об одном новом разобранном ревью."""
+# ---------- Корона: кто чаще всех на ревью ----------
+def standings(sessions):
+    """По всем встречам считает {короткое_имя: число_встреч} и {имя: пол}.
+    Логика та же, что на сайте: одно имя в любом формате = один человек."""
+    seen, genders = {}, {}
+    for s in sessions:
+        key = (s.get("date", ""), s.get("part", ""))
+        for d in s.get("designers", []):
+            raw = d.get("name", "")
+            nm = config.short_name(raw)
+            seen.setdefault(nm, set()).add(key)
+            genders[nm] = config.gender(raw)
+    return {nm: len(v) for nm, v in seen.items()}, genders
+
+
+def _top_set(counts):
+    """Множество обладателей короны и их число встреч. Корона — если лидер был
+    хотя бы на 2 встречах (как на сайте). Возвращает (set, max)."""
+    if not counts:
+        return set(), 0
+    mx = max(counts.values())
+    if mx < 2:
+        return set(), mx
+    return {n for n, c in counts.items() if c == mx}, mx
+
+
+def crown_change_note(before_counts, after_counts, genders):
+    """Если после новой встречи корона сменила обладателя — возвращает классную
+    строку для уведомления. Если ничего не поменялось — None."""
+    bset, _ = _top_set(before_counts)
+    aset, mx = _top_set(after_counts)
+    if not aset or aset == bset:
+        return None
+
+    def fem(n):
+        return genders.get(n) == "f"
+
+    def solo(n):
+        return "единоличная королева" if fem(n) else "единоличный король"
+
+    if len(aset) == 1:
+        n = next(iter(aset))
+        if not bset:
+            return "👑 У нас первый монарх ревью — %s! Корона по праву, встреч: %d." % (n, mx)
+        if n not in bset:
+            return random.choice([
+                "👑 Переворот! %s перехватывает корону — теперь %s ревью (встреч: %d)." % (n, solo(n), mx),
+                "👑 Корона сменила голову: %s вырывается вперёд и забирает трон себе — встреч: %d!" % (n, mx),
+            ])
+        return random.choice([
+            "👑 %s разбивает ничью и остаётся одна на троне — %s ревью (встреч: %d)!" % (n, solo(n), mx),
+            "👑 Корона больше ни с кем не делится: %s — %s ревью, встреч: %d." % (n, solo(n), mx),
+        ])
+
+    newcomers = sorted(aset - bset)
+    holders = ", ".join(sorted(aset))
+    if newcomers:
+        joined = ", ".join(newcomers)
+        verb = "догоняет" if len(newcomers) == 1 else "догоняют"
+        return "👑 %s %s лидеров — корона теперь у: %s (встреч: %d)." % (joined, verb, holders, mx)
+    return "👑 Корона теперь у: %s (встреч: %d)." % (holders, mx)
+
+
+def notify_new_session(session, crown_note=None):
+    """Шлёт уведомление об одном новом разобранном ревью.
+    crown_note — строка про смену короны (если лидер сменился), иначе None."""
     designers = session.get("designers", [])
     n_items = sum(len(p.get("items", [])) for d in designers for p in d.get("projects", []))
     head = "📋 Чек-лист ревью — %s" % _fmt_date(session.get("date", ""))
@@ -318,6 +382,8 @@ def notify_new_session(session):
         head += " (%s)" % extra
     lines = [random.choice(PHRASES), "", head,
              "Дизайнеров: %d · правок: %d" % (len(designers), n_items)]
+    if crown_note:
+        lines += ["", crown_note]
     # Ссылка на актуальный сайт — обязательна в КАЖДОМ сообщении.
     # config.SITE_URL гарантированно непустой (есть значение по умолчанию).
     lines.append(config.SITE_URL or "https://design-review-checklists-git-main-shsbs.vercel.app")
