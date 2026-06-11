@@ -12,6 +12,10 @@ on:
     # четверг: 14:00–20:30 UTC = 17:00–23:30 МСК
     - cron: "*/30 14-20 * * 4"
   workflow_dispatch: {}
+  # ручной разовый запуск: положить/изменить trigger/run-sync.txt и запушить
+  push:
+    paths:
+      - "trigger/run-sync.txt"
 
 permissions:
   contents: write
