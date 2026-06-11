@@ -1,15 +1,16 @@
 name: Edit last bot message
 
-# Редактирует прошлый пост-чеклист бота (например, добавить забытую ссылку).
-# Как это работает:
-#   1) кто-то отвечает (reply) на нужный пост бота в группе — так бот узнаёт его номер;
-#   2) в репозиторий кладётся trigger/edit-last.txt с новым текстом → запускается этот workflow;
-#   3) бот находит номер по reply и редактирует пост (без оповещения).
+# Редактирует ПОСЛЕДНИЙ пост-чеклист бота по сохранённому message_id из журнала
+# (data/sent_messages.json) — ничего отвечать в чате не нужно.
+# Как запустить: положить новый текст в trigger/edit-last.txt и запушить.
 on:
   push:
     paths:
       - "trigger/edit-last.txt"
   workflow_dispatch: {}
+
+permissions:
+  contents: write
 
 jobs:
   edit:
@@ -23,3 +24,14 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         run: python -m src.notify --edit-last
+      - name: Зафиксировать факт правки в журнале
+        run: |
+          git config user.name "MyStrange"
+          git config user.email "18186386+MyStrange@users.noreply.github.com"
+          git add data/sent_messages.json
+          if git diff --cached --quiet; then
+            echo "Журнал не изменился (правка не прошла?)."
+          else
+            git commit -m "Журнал: отредактировано сообщение бота"
+            git push
+          fi

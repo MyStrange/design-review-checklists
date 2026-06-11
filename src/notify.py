@@ -194,7 +194,10 @@ def edit_stored(new_text, kind=None):
     rec = last_sent(kind)
     if rec and rec.get("message_id") is not None:
         print("Редактирую по журналу: message_id=%s (%s)" % (rec["message_id"], rec.get("preview", "")))
-        return _tg_edit(rec["chat_id"], rec["message_id"], new_text)
+        ok = _tg_edit(rec["chat_id"], rec["message_id"], new_text)
+        if ok:
+            _record_sent(rec["chat_id"], rec["message_id"], "edit", new_text)
+        return ok
     print("В журнале нет сохранённых сообщений — пробую найти по ответу в чате.")
     return edit_last_checklist(new_text)
 
@@ -345,20 +348,27 @@ def crown_change_note(before_counts, after_counts, genders):
     def fem(n):
         return genders.get(n) == "f"
 
-    def solo(n):
+    def title(n):                       # король / королева
+        return "королева" if fem(n) else "король"
+
+    def solo(n):                        # единоличный король / единоличная королева
         return "единоличная королева" if fem(n) else "единоличный король"
+
+    def alone(n):                       # один / одна
+        return "одна" if fem(n) else "один"
 
     if len(aset) == 1:
         n = next(iter(aset))
         if not bset:
-            return "👑 У нас первый монарх ревью — %s! Корона по праву, встреч: %d." % (n, mx)
+            return "👑 У нас перв%s ревью — %s! Корона по праву, встреч: %d." % (
+                "ая королева" if fem(n) else "ый король", n, mx)
         if n not in bset:
             return random.choice([
                 "👑 Переворот! %s перехватывает корону — теперь %s ревью (встреч: %d)." % (n, solo(n), mx),
                 "👑 Корона сменила голову: %s вырывается вперёд и забирает трон себе — встреч: %d!" % (n, mx),
             ])
         return random.choice([
-            "👑 %s разбивает ничью и остаётся одна на троне — %s ревью (встреч: %d)!" % (n, solo(n), mx),
+            "👑 %s разбивает ничью и остаётся %s на троне — %s ревью (встреч: %d)!" % (n, alone(n), solo(n), mx),
             "👑 Корона больше ни с кем не делится: %s — %s ревью, встреч: %d." % (n, solo(n), mx),
         ])
 
