@@ -20,14 +20,15 @@ from . import config
 RU_MONTHS = ["января", "февраля", "марта", "апреля", "мая", "июня",
              "июля", "августа", "сентября", "октября", "ноября", "декабря"]
 
-# После этого часа по МСК уведомления уходят тихо и без тегов (чтобы не дёргать вечером).
-QUIET_AFTER_HOUR_MSK = 18
+# Если конспект пришёл позже этого часа по МСК — не шлём вечером, а откладываем
+# на 10:00 следующего дня (и шлём уже со звуком и тегами).
+LATE_AFTER_HOUR_MSK = 18
 
 
-def _is_late_now():
-    """Сейчас позже QUIET_AFTER_HOUR_MSK по Москве? (GitHub Actions работает по UTC, МСК = UTC+3.)"""
+def is_late_now():
+    """Сейчас позже LATE_AFTER_HOUR_MSK по Москве? (GitHub Actions по UTC, МСК = UTC+3.)"""
     msk = datetime.utcnow() + timedelta(hours=3)
-    return msk.hour >= QUIET_AFTER_HOUR_MSK
+    return msk.hour >= LATE_AFTER_HOUR_MSK
 
 
 def _http(url, payload=None, headers=None):
@@ -406,14 +407,29 @@ def notify_new_session(session, crown_note=None):
     # Ссылка на актуальный сайт — обязательна в КАЖДОМ сообщении.
     # config.SITE_URL гарантированно непустой (есть значение по умолчанию).
     lines.append(config.SITE_URL or "https://design-review-checklists-git-main-shsbs.vercel.app")
-    # Поздно (после 18:00 МСК) — шлём тихо и БЕЗ тегов, чтобы вечером никого не дёргать.
-    late = _is_late_now()
-    if not late:
-        mentions = _mentions(session)
-        if mentions:
-            lines += ["", " ".join(mentions)]
+    mentions = _mentions(session)
+    if mentions:
+        lines += ["", " ".join(mentions)]
     # kind="checklist" — чтобы потом можно было найти и отредактировать этот пост по id
-    send_text("\n".join(lines), silent=late, kind="checklist")
+    send_text("\n".join(lines), kind="checklist")
+
+
+# ---------- Очередь отложенных уведомлений (для конспектов, пришедших поздно) ----------
+def enqueue_pending(data, session, crown_note=None):
+    """Откладывает уведомление на утро (хранится прямо в data → коммитится)."""
+    data.setdefault("pending_notifications", []).append(
+        {"session": session, "crown_note": crown_note})
+
+
+def send_pending(data):
+    """Отправляет все отложенные уведомления (утром, со звуком и тегами) и чистит очередь.
+    Возвращает число отправленных."""
+    pend = data.get("pending_notifications", [])
+    for item in pend:
+        notify_new_session(item.get("session", {}), crown_note=item.get("crown_note"))
+    if pend:
+        data["pending_notifications"] = []
+    return len(pend)
 
 
 def _cli():

@@ -97,15 +97,31 @@ def run_fetch():
     for item in new_items:
         print("  UID %s — %s" % (item["uid"], item["subject"]))
         new_sessions.append(process(item, data))
-    save_data(data)
+    save_data(data)  # сразу фиксируем обработанные письма (чтобы не разобрать повторно)
     build.build_site(data)
     # корона ПОСЛЕ — если сменилась, добавим классную строку в последнее уведомление
     after_counts, genders = notify.standings(data["sessions"])
     crown_note = notify.crown_change_note(before_counts, after_counts, genders)
+    late = notify.is_late_now()
     for i, s in enumerate(new_sessions):
         note = crown_note if i == len(new_sessions) - 1 else None
-        notify.notify_new_session(s, crown_note=note)
+        if late:
+            # после 18:00 — не дёргаем вечером, откладываем на 10:00 следующего дня
+            notify.enqueue_pending(data, s, note)
+            print("    поздно (после 18:00 МСК) — уведомление отложено на завтра 10:00")
+        else:
+            notify.notify_new_session(s, crown_note=note)
+    save_data(data)  # сохраняем после возможной постановки в очередь
     print("Готово.")
+
+
+def run_send_pending():
+    """Утренний прогон: разослать отложенные с вечера уведомления (со звуком и тегами)."""
+    data = load_data()
+    n = notify.send_pending(data)
+    if n:
+        save_data(data)
+    print("Отправлено отложенных уведомлений: %d" % n)
 
 
 def run_local(path, date_iso, part):
@@ -132,11 +148,16 @@ def main():
     ap.add_argument("--date", help="дата ревью YYYY-MM-DD (для --file)")
     ap.add_argument("--part", default="", help="метка части, напр. ч.1 (для --file)")
     ap.add_argument("--build-only", action="store_true", help="только пересобрать HTML")
+    ap.add_argument("--send-pending", action="store_true",
+                    help="разослать отложенные на утро уведомления")
     args = ap.parse_args()
 
     if args.build_only:
         build.build_site(load_data())
         print("Страница пересобрана.")
+        return
+    if args.send_pending:
+        run_send_pending()
         return
     if args.file:
         if not args.date:
