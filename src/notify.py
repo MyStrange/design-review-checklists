@@ -13,12 +13,21 @@ import json
 import random
 import urllib.error
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from . import config
 
 RU_MONTHS = ["января", "февраля", "марта", "апреля", "мая", "июня",
              "июля", "августа", "сентября", "октября", "ноября", "декабря"]
+
+# После этого часа по МСК уведомления уходят тихо и без тегов (чтобы не дёргать вечером).
+QUIET_AFTER_HOUR_MSK = 18
+
+
+def _is_late_now():
+    """Сейчас позже QUIET_AFTER_HOUR_MSK по Москве? (GitHub Actions работает по UTC, МСК = UTC+3.)"""
+    msk = datetime.utcnow() + timedelta(hours=3)
+    return msk.hour >= QUIET_AFTER_HOUR_MSK
 
 
 def _http(url, payload=None, headers=None):
@@ -397,11 +406,14 @@ def notify_new_session(session, crown_note=None):
     # Ссылка на актуальный сайт — обязательна в КАЖДОМ сообщении.
     # config.SITE_URL гарантированно непустой (есть значение по умолчанию).
     lines.append(config.SITE_URL or "https://design-review-checklists-git-main-shsbs.vercel.app")
-    mentions = _mentions(session)
-    if mentions:
-        lines += ["", " ".join(mentions)]
+    # Поздно (после 18:00 МСК) — шлём тихо и БЕЗ тегов, чтобы вечером никого не дёргать.
+    late = _is_late_now()
+    if not late:
+        mentions = _mentions(session)
+        if mentions:
+            lines += ["", " ".join(mentions)]
     # kind="checklist" — чтобы потом можно было найти и отредактировать этот пост по id
-    send_text("\n".join(lines), kind="checklist")
+    send_text("\n".join(lines), silent=late, kind="checklist")
 
 
 def _cli():
