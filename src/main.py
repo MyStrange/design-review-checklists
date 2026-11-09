@@ -42,6 +42,46 @@ def _item_id(date_iso, designer, project, idx, text):
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:12]
 
 
+# Обезличенные подписи вместо имени: читателю непонятно, кто это, — выбрасываем.
+_ROLE_WORDS = {"ведущий", "ведущая", "модератор", "модератора", "участник",
+               "участница", "спикер", "докладчик", "не указан", "неизвестно"}
+
+
+def _fun_author(raw_author):
+    """Имя автора номинации или '' — если это роль, пусто или непонятно кто."""
+    author = (raw_author or "").strip()
+    if not author or author.lower() in _ROLE_WORDS:
+        return ""
+    return config.short_name(author)[:40]
+
+
+def _clean_fun(raw):
+    """Шуточные номинации встречи: оставляем только заполненные и подрезаем длину.
+    Имя автора приводим к короткому — чтобы совпадало с остальной страницей."""
+    out = {}
+    for key in ("weird_word", "catch_phrase", "smart_comment", "filler_word"):
+        nom = (raw or {}).get(key) or {}
+        if not isinstance(nom, dict):
+            continue
+        text = (nom.get("text") or "").strip()
+        if not text:
+            continue
+        item = {"text": text[:160], "note": (nom.get("note") or "").strip()[:160]}
+        if key == "filler_word":
+            # у паразита автора нет принципиально — важно общее число за встречу
+            try:
+                count = int(nom.get("count") or 0)
+            except (TypeError, ValueError):
+                count = 0
+            if count < 1:
+                continue        # без счётчика номинация бессмысленна
+            item["count"] = count
+        else:
+            item["author"] = _fun_author(nom.get("author"))
+        out[key] = item
+    return out
+
+
 def build_session(item, extracted):
     date_iso = item.get("date") or ""
     designers = []
@@ -73,6 +113,7 @@ def build_session(item, extracted):
         "part": item.get("part") or "",
         "subject": item.get("subject") or "",
         "designers": designers,
+        "fun": _clean_fun(extracted.get("fun")),
     }
 
 

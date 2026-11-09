@@ -313,6 +313,8 @@ def _mentions(session):
     """@username тех дизайнеров, кто был на этом ревью (по карте логинов)."""
     out, seen = [], set()
     for d in session.get("designers", []):
+        if config.is_hidden(d.get("name", "")):
+            continue
         short = config.short_name(d.get("name", ""))
         uname = config.TELEGRAM_USERNAMES.get(short)
         if uname and uname not in seen:
@@ -330,6 +332,8 @@ def standings(sessions):
         key = (s.get("date", ""), s.get("part", ""))
         for d in s.get("designers", []):
             raw = d.get("name", "")
+            if config.is_hidden(raw):
+                continue
             nm = config.short_name(raw)
             seen.setdefault(nm, set()).add(key)
             genders[nm] = config.gender(raw)

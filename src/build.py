@@ -17,30 +17,32 @@ RU_MONTHS = ["января", "февраля", "марта", "апреля", "м
 
 CSS = """
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: #DCE4EF; font-family: 'Golos Text', sans-serif; font-size: 15px; line-height: 1.5; min-height: 100vh; display: flex; color: #1a1a1a; }
-.sidebar { width: 250px; flex-shrink: 0; background: #fff; padding: 24px 0; display: flex; flex-direction: column; position: fixed; top: 0; left: 0; bottom: 0; overflow-y: auto; }
-.mode-toggle { display: flex; gap: 4px; margin: 0 16px 16px; background: #DCE4EF; border-radius: 8px; padding: 3px; }
-.mode-btn { flex: 1; text-align: center; font-size: 14px; font-weight: 600; padding: 7px 8px; border-radius: 6px; cursor: pointer; color: #555; border: none; background: transparent; font-family: inherit; transition: all .12s; }
+body { background: #F3F5F7; font-family: 'Golos Text', sans-serif; font-size: 15px; line-height: 1.5; min-height: 100vh; display: flex; color: #1a1a1a; }
+.sidebar { width: 250px; flex-shrink: 0; background: transparent; padding: 24px 0; display: flex; flex-direction: column; position: fixed; top: 0; left: 0; bottom: 0; overflow-y: auto; }
+.mode-toggle { display: flex; gap: 4px; margin: 0 16px 16px; background: #E7EBF0; border-radius: 8px; padding: 3px; }
+.mode-btn { flex: 1; text-align: center; font-size: 14px; font-weight: 600; padding: 7px 8px; border-radius: 6px; cursor: pointer; color: #6b7585; border: none; background: transparent; font-family: inherit; transition: all .12s; }
 .mode-btn.active { background: #fff; color: #1a1a1a; }
-.sidebar-title { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #bbb; padding: 0 20px; margin-bottom: 12px; }
+.sidebar-title { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #a7b0bd; padding: 0 20px; margin-bottom: 12px; }
 .nav-item { margin: 1px 16px; padding: 9px 14px; border-radius: 10px; cursor: pointer; transition: background .12s; }
-.nav-item:hover { background: #fafafa; }
-.nav-item.active { background: #E6ECF4; }
+.nav-item:hover { background: #E9EDF2; }
+.nav-item.active { background: #fff; }
 .nav-item.active .nav-main { color: #1a1a1a; }
 .nav-item.active .nav-sub { color: #7a8699; }
 .nav-main { font-size: 14px; font-weight: 600; color: #1a1a1a; }
-.nav-item:not(.active) .nav-main { color: #888; font-weight: 500; }
-.nav-sub { font-size: 12px; color: #bbb; margin-top: 1px; }
-.nav-empty { padding: 10px 20px; color: #bbb; font-size: 13px; }
-.nav-divider { height: 1px; background: #cdd6e4; margin: 12px 16px 10px; }
-.main { margin-left: 250px; flex: 1; padding: 40px 40px 80px; max-width: 800px; }
+.nav-item:not(.active) .nav-main { color: #70798a; font-weight: 500; }
+.nav-sub { font-size: 12px; color: #a7b0bd; margin-top: 1px; }
+.nav-empty { padding: 10px 20px; color: #a7b0bd; font-size: 13px; }
+.nav-divider { height: 1px; background: #E0E5EB; margin: 12px 16px 10px; }
+/* Белая рабочая область внутри серого фона */
+.main { margin: 8px 8px 8px 250px; flex: 1; background: #fff; border-radius: 20px; padding: 40px 40px 72px; min-height: calc(100vh - 16px); }
+.main-inner { max-width: 800px; }
 .session-header { margin-bottom: 28px; }
 .session-meta { font-size: 12px; color: #999; margin-bottom: 6px; letter-spacing: 0.04em; }
 h1 { font-size: 60px; font-weight: 600; color: #1a1a1a; letter-spacing: -0.02em; line-height: 1.05; }
 .crown svg { height: 15px; vertical-align: middle; margin-left: 5px; position: relative; top: -1px; }
 .crown-h1 svg { height: 40px; vertical-align: baseline; margin-left: 12px; }
-.status-badge { display: inline-block; margin-top: 14px; font-size: 12px; font-weight: 600; color: #fff; padding: 5px 11px; border-radius: 6px; }
-.st-king { background: #6C4BB6; }
+.status-badge { display: inline-block; margin-top: 14px; font-size: 12px; font-weight: 600; color: #fff; padding: 5px 13px; border-radius: 999px; }
+.st-king { background: #1a1a1a; }
 .st-product { background: #9b59b6; }
 .st-dev { background: #3a7be0; }
 .st-seo { background: #2e9e6b; }
@@ -51,11 +53,14 @@ h1 { font-size: 60px; font-weight: 600; color: #1a1a1a; letter-spacing: -0.02em;
 .st-ux { background: #199AF0; }
 .st-second { background: #7E8BA3; }
 .st-multi { background: #2BA39A; }
+/* Блок номинаций использует стили обычных карточек; строки некликабельны. */
+.fun .task { cursor: default; }
+.fun .task:hover { background: none; }
 .card-date { font-size: 12px; font-weight: 600; color: #999; margin: 22px 0 8px 2px; }
 .card-date:first-child { margin-top: 0; }
-.project { background: #fff; border-radius: 20px; margin-bottom: 14px; overflow: hidden; }
+.project { background: #fff; border: 1px solid #E8ECF1; border-radius: 20px; margin-bottom: 14px; overflow: hidden; }
 .project-header { padding: 18px 20px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; gap: 12px; }
-.project-header:hover { background: #fafafa; }
+.project-header:hover { background: #F6F8FA; }
 .author { font-size: 15px; font-weight: 600; color: #1a1a1a; }
 .project-name { font-size: 13px; color: #999; margin-top: 1px; }
 .project-right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
@@ -64,11 +69,11 @@ h1 { font-size: 60px; font-weight: 600; color: #1a1a1a; letter-spacing: -0.02em;
 .chevron { color: #ccc; font-size: 11px; transition: transform 0.2s; }
 .project.collapsed .chevron { transform: rotate(-90deg); }
 .project.collapsed .tasks { display: none; }
-.tasks { border-top: 1px solid #f0f0f0; }
-.task { display: flex; align-items: flex-start; gap: 12px; padding: 14px 20px; border-bottom: 1px solid #f0f0f0; cursor: pointer; }
+.tasks { border-top: 1px solid #EEF1F4; }
+.task { display: flex; align-items: flex-start; gap: 12px; padding: 14px 20px; border-bottom: 1px solid #EEF1F4; cursor: pointer; }
 .task:last-child { border-bottom: none; }
-.task:hover { background: #fafafa; }
-.checkbox { width: 17px; height: 17px; border-radius: 4px; border: 1.5px solid #d0d0d0; flex-shrink: 0; margin-top: 2px; display: flex; align-items: center; justify-content: center; transition: all .15s; background: #fff; }
+.task:hover { background: #F6F8FA; }
+.checkbox { width: 17px; height: 17px; border-radius: 4px; border: 1.5px solid #CFD6DE; flex-shrink: 0; margin-top: 2px; display: flex; align-items: center; justify-content: center; transition: all .15s; background: #fff; }
 .task.checked .checkbox { background: #199AF0; border-color: #199AF0; }
 .task.checked .checkbox::after { content: ''; width: 4px; height: 8px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); margin-top: -2px; }
 .task-text { font-size: 14px; color: #333; flex: 1; padding-top: 1px; }
@@ -82,7 +87,7 @@ h1 { font-size: 60px; font-weight: 600; color: #1a1a1a; letter-spacing: -0.02em;
 .tag.legal { color: #9a7b2e; background: #f6efdc; }
 .tag.branding { color: #d6336c; background: #fde8ef; }
 .placeholder { color: #bbb; text-align: center; padding: 80px 20px; }
-.reset-btn { position: fixed; bottom: 24px; right: 24px; background: #fff; border: 1px solid #e0e0e0; color: #999; font-family: 'Golos Text', sans-serif; font-size: 12px; padding: 8px 14px; border-radius: 8px; cursor: pointer; transition: all .15s; }
+.reset-btn { position: fixed; bottom: 24px; right: 24px; background: #fff; border: 1px solid #E2E7EC; color: #999; font-family: 'Golos Text', sans-serif; font-size: 12px; padding: 8px 14px; border-radius: 8px; cursor: pointer; transition: all .15s; }
 .reset-btn:hover { color: #555; border-color: #bbb; }
 @media (max-width: 640px) {
   body { flex-direction: column; }
@@ -91,8 +96,8 @@ h1 { font-size: 60px; font-weight: 600; color: #1a1a1a; letter-spacing: -0.02em;
   .sidebar-title { display: none; }
   #nav-list { display: flex; overflow-x: auto; gap: 4px; padding: 0 8px; }
   .nav-item { flex-shrink: 0; border-left: none; border-bottom: 2px solid transparent; padding: 6px 12px; border-radius: 8px; }
-  .nav-item.active { background: #E6ECF4; }
-  .main { margin-left: 0; padding: 24px 16px 80px; }
+  .nav-item.active { background: #fff; }
+  .main { margin: 8px; padding: 24px 16px 80px; min-height: 0; border-radius: 16px; }
   h1 { font-size: 38px; }
 }
 """
@@ -170,6 +175,7 @@ function renderMain(){
     const s=DATA.sessions[sIdx];
     if(!s){ elMain.innerHTML=emptyHTML(); return; }
     elMain.innerHTML = `<div class="session-header"><h1>Чеклист правок</h1></div>`
+      + funHTML(s.fun)
       + (s.projects.map(p=>cardHTML(p,p.author)).join('') || emptyHTML());
   } else {
     const n=designerNames[dIdx];
@@ -180,6 +186,29 @@ function renderMain(){
     elMain.innerHTML = `<div class="session-header"><h1>${esc(n)}${crownH}</h1>${badge}</div>`
       + DIDX[n].map(x=>cardHTML(x.project,x.dateLabel)).join('');
   }
+}
+// Шуточные номинации встречи. Показываем только то, что реально нашлось.
+const FUN_KINDS = [
+  ['weird_word',    '🙃', 'Самое странное слово'],
+  ['catch_phrase',  '🔁', 'Фраза встречи'],
+  ['smart_comment', '🧠', 'Самый умный комментарий'],
+  ['filler_word',   '💬', 'Самое частое слово-паразит'],
+];
+function funHTML(fun){
+  if(!fun) return '';
+  const rows = FUN_KINDS.map(([k,ico,label])=>{
+    const n = fun[k];
+    if(!n || !n.text) return '';
+    // вторая строка: что за номинация, кто сказал или сколько раз прозвучало
+    const bits = [label];
+    if(n.author) bits.push(esc(n.author));
+    if(n.count) bits.push(n.count+' '+plural(n.count,'раз','раза','раз')+' за встречу');
+    const note = n.note ? `<div class="project-name">${esc(n.note)}</div>` : '';
+    return `<div class="task"><div>${ico}</div>
+      <div><div class="author">${esc(n.text)}</div>
+      <div class="project-name">${bits.join(' \u00B7 ')}</div>${note}</div></div>`;
+  }).filter(Boolean);
+  return rows.length ? `<div class="project fun">${rows.join('')}</div>` : '';
 }
 function render(){ renderNav(); renderMain(); }
 function setMode(m){ if(mode===m) return; mode=m;
@@ -223,7 +252,9 @@ TEMPLATE = """<!doctype html>
   </div>
   <div id="nav-list"></div>
 </nav>
-<main class="main" id="main"></main>
+<main class="main">
+  <div class="main-inner" id="main"></div>
+</main>
 <button class="reset-btn" onclick="resetCurrent()">Сбросить</button>
 <script>__JS__</script>
 </body>
@@ -265,6 +296,9 @@ def _to_data(sessions):
         names = set()
         for di, d in enumerate(s.get("designers", [])):
             raw_name = d.get("name") or "Не указан"
+            # Ушедшие из команды на страницу не попадают (данные при этом целы)
+            if config.is_hidden(raw_name):
+                continue
             author = config.short_name(raw_name)
             names.add(author)
             genders[author] = config.gender(raw_name)
@@ -279,12 +313,16 @@ def _to_data(sessions):
                         for it in p.get("items", [])
                     ],
                 })
+        # встреча, где не осталось ни одного видимого дизайнера, не показывается
+        if not projects:
+            continue
         out.append({
             "id": sid,
             "date": iso,
             "dateLabel": _date_label(iso),
             "meta": _meta(iso, s.get("part", ""), s.get("weekday", "")),
             "designersCount": len([n for n in names if n]),
+            "fun": s.get("fun") or {},
             "projects": projects,
         })
     return {"sessions": out, "genders": genders}
