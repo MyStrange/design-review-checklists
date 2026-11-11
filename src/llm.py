@@ -7,11 +7,16 @@
 Зависимостей нет — только стандартная библиотека Python.
 """
 import json
+import re
 import time
 import urllib.request
 import urllib.error
 
 from . import config
+
+
+class QuotaExceeded(RuntimeError):
+    """Суточная квота провайдера исчерпана — повторять сегодня бессмысленно."""
 
 # Одна шуточная номинация: что именно прозвучало, кто сказал и короткая подпись.
 _NOMINATION = {
@@ -231,6 +236,18 @@ _FUN_TITLES = {
 }
 
 
+def _quota_note(detail):
+    """Короткая понятная строка из простыни, которую возвращает Gemini."""
+    limit = re.search(r"limit: (\d+), model: ([\w.-]+)", detail)
+    retry = re.search(r"retry in ([\dhms.]+)", detail)
+    parts = ["суточная квота модели исчерпана"]
+    if limit:
+        parts.append("лимит %s запросов в сутки на %s" % (limit.group(1), limit.group(2)))
+    if retry:
+        parts.append("ждать примерно %s" % retry.group(1).split(".")[0])
+    return ", ".join(parts)
+
+
 def _nomination_schema(key):
     if key == "filler_word":
         return _NOMINATION_FILLER
@@ -300,6 +317,8 @@ def _complete_fun(transcript, fun):
         }
         try:
             patch = _gemini(prompt, schema, transcript)
+        except QuotaExceeded:
+            raise
         except Exception as e:  # добивка не вышла — отдаём то, что есть
             print("    номинации %s добить не удалось: %s" % (", ".join(missing), e))
             break
@@ -351,6 +370,9 @@ def _gemini(prompt, schema, transcript):
         except urllib.error.HTTPError as e:
             detail = e.read().decode("utf-8", "replace")
             last_err = "HTTP %s: %s" % (e.code, detail)
+            if e.code == 429 and "per day" in detail:
+                # суточная квота кончилась: ретраи не помогут, ждать нужно часы
+                raise QuotaExceeded(_quota_note(detail))
             if e.code in (429, 500, 503):
                 # бесплатный тир Gemini часто отвечает 429/503 — ждём подольше,
                 # иначе все три попытки сгорают внутри одного пика нагрузки

@@ -11,6 +11,10 @@ on:
         description: "Пересобрать рубрики заново, даже там, где они уже есть"
         type: boolean
         default: false
+      model:
+        description: "Модель Gemini: пусто — как обычно, flash-lite — когда кончилась суточная квота"
+        type: string
+        default: ""
   # ручной разовый запуск: изменить trigger/refill-fun.txt и запушить
   push:
     paths:
@@ -38,6 +42,7 @@ jobs:
           YANDEX_USER: ${{ secrets.YANDEX_USER }}
           YANDEX_APP_PASSWORD: ${{ secrets.YANDEX_APP_PASSWORD }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ inputs.model || 'gemini-2.5-flash' }}
         run: python -m src.main --refill-fun ${{ inputs.force && '--force' || '' }}
 
       - name: Закоммитить изменения

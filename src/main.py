@@ -106,6 +106,15 @@ def _clean_fun(raw):
     return out
 
 
+def _fun_filled(nom):
+    """Есть ли в номинации хоть что-то: текст или список паразитов."""
+    if not isinstance(nom, dict):
+        return False
+    if (nom.get("text") or "").strip():
+        return True
+    return bool(nom.get("items"))
+
+
 def _clean_filler_items(nom):
     """Топ-5 паразитов: пары слово-число, по убыванию, без пустых и дублей."""
     raw_items = nom.get("items")
@@ -213,7 +222,7 @@ def run_refill_fun(force=False):
     skip = {str(u) for u in data["processed_uids"]} - set(targets)
     by_uid = {str(item["uid"]): item for item in fetch.fetch_new_reviews(skip)}
 
-    changed = 0
+    changed, quota_over = 0, False
     for uid, session in targets.items():
         label = "%s %s" % (session.get("date") or "?", session.get("part") or "")
         item = by_uid.get(uid)
@@ -222,14 +231,21 @@ def run_refill_fun(force=False):
             continue
         current = session.get("fun") or {}
         before = len(current)
+        if quota_over:
+            break
         # при force спрашиваем все четыре заново, прежние ответы не подставляем
-        fun = llm.complete_fun(item["transcript"], {} if force else current)
+        try:
+            fun = llm.complete_fun(item["transcript"], {} if force else current)
+        except llm.QuotaExceeded as e:
+            # дальше по встречам идти незачем: сохраним сделанное и выйдем
+            print("  остановка: %s" % e)
+            quota_over = True
+            break
         if force:
             # модель могла не ответить по части рубрик — старое оставляем как было,
             # иначе один таймаут Gemini стирает уже собранный блок
             merged = dict(current)
-            merged.update({k: v for k, v in fun.items()
-                           if isinstance(v, dict) and (v.get("text") or "").strip()})
+            merged.update({k: v for k, v in fun.items() if _fun_filled(v)})
             fun = merged
         session["fun"] = _clean_fun(fun)
         after = len(session["fun"])
