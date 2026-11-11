@@ -7,6 +7,7 @@
 import email
 import imaplib
 import re
+import time
 from datetime import datetime, timedelta
 from email.header import decode_header
 
@@ -83,13 +84,45 @@ def _headers(M, uid_b):
     return _decode_header(msg.get("From")), _decode_header(msg.get("Subject"))
 
 
+def _connect():
+    M = imaplib.IMAP4_SSL(config.IMAP_HOST, config.IMAP_PORT)
+    M.login(config.YANDEX_USER, config.YANDEX_APP_PASSWORD)
+    M.select("INBOX")
+    return M
+
+
+def _load_item(M, uid_b):
+    """Одно письмо: заголовки + текст вложения. None — письмо нам не подходит.
+
+    Исключения соединения не глушим: выше по стеку мы переподключаемся и
+    пробуем это же письмо ещё раз.
+    """
+    frm, subj = _headers(M, uid_b)
+    if SENDER_DOMAIN.lower() not in frm.lower():
+        return "not-ours"
+    if config.SUBJECT_MUST_CONTAIN.lower() not in subj.lower():
+        return None
+    typ, md = M.uid("fetch", uid_b, "(RFC822)")
+    if typ != "OK" or not md or md[0] is None:
+        return None
+    msg = email.message_from_bytes(md[0][1])
+    transcript = _extract_txt(msg)
+    if not transcript.strip():
+        return None
+    date_iso, part = parse_subject_meta(subj)
+    return {
+        "uid": uid_b.decode(),
+        "subject": subj,
+        "date": date_iso,
+        "part": part,
+        "transcript": transcript,
+    }
+
+
 def fetch_new_reviews(processed_uids):
     """processed_uids: set[str]. Возвращает список новых писем-конспектов."""
-    M = imaplib.IMAP4_SSL(config.IMAP_HOST, config.IMAP_PORT)
+    M = _connect()
     try:
-        M.login(config.YANDEX_USER, config.YANDEX_APP_PASSWORD)
-        M.select("INBOX")
-
         since = (datetime.utcnow() - timedelta(days=config.SEARCH_SINCE_DAYS)).strftime("%d-%b-%Y")
 
         # Основной поиск — по домену отправителя на сервере.
@@ -109,27 +142,30 @@ def fetch_new_reviews(processed_uids):
             uid = uid_b.decode()
             if uid in processed_uids:
                 continue
-            frm, subj = _headers(M, uid_b)
-            if SENDER_DOMAIN.lower() not in frm.lower():
+            # Яндекс иногда рвёт соединение прямо посреди выкачивания письма.
+            # Один обрыв не должен ронять весь прогон: переподключаемся и
+            # пробуем это письмо ещё раз, не вышло — пропускаем его.
+            for attempt in (1, 2, 3):
+                try:
+                    item = _load_item(M, uid_b)
+                    break
+                except (imaplib.IMAP4.abort, imaplib.IMAP4.error, OSError) as e:
+                    if attempt == 3:
+                        print("  письмо %s не забрать: %s" % (uid, e))
+                        item = None
+                        break
+                    print("  соединение с почтой оборвалось, переподключаюсь: %s" % e)
+                    try:
+                        M.logout()
+                    except Exception:
+                        pass
+                    time.sleep(3 * attempt)
+                    M = _connect()
+            if item == "not-ours":
                 continue
             from_domain += 1
-            if config.SUBJECT_MUST_CONTAIN.lower() not in subj.lower():
-                continue
-            typ, md = M.uid("fetch", uid_b, "(RFC822)")
-            if typ != "OK" or not md or md[0] is None:
-                continue
-            msg = email.message_from_bytes(md[0][1])
-            transcript = _extract_txt(msg)
-            if not transcript.strip():
-                continue
-            date_iso, part = parse_subject_meta(subj)
-            result.append({
-                "uid": uid,
-                "subject": subj,
-                "date": date_iso,
-                "part": part,
-                "transcript": transcript,
-            })
+            if item:
+                result.append(item)
 
         print("Писем от Телемоста: %d, из них новых конспектов с .txt: %d" % (from_domain, len(result)))
         return result
