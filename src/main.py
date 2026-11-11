@@ -37,6 +37,14 @@ def weekday_label(date_iso):
         return ""
 
 
+# Теги правок: к кому идти с пунктом. Совпадают с enum в схеме LLM и со
+# стилями .tag на странице — новый тег добавляется сразу в трёх местах.
+TAGS = ("ux", "dev", "product", "seo", "legal", "branding")
+# «discuss» — старое название продуктового тега, встречается в уже разобранных
+# встречах; на странице он и так показывается как «Продакт».
+_TAG_ALIASES = {"discuss": "product"}
+
+
 def _item_id(date_iso, designer, project, idx, text):
     raw = "%s|%s|%s|%s|%s" % (date_iso, designer, project, idx, text)
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:12]
@@ -73,9 +81,10 @@ def _clean_fun(raw):
                 count = int(nom.get("count") or 0)
             except (TypeError, ValueError):
                 count = 0
-            if count < 1:
-                continue        # без счётчика номинация бессмысленна
-            item["count"] = count
+            # счётчик необязателен: без него номинация просто показывается без числа,
+            # выкидывать её нельзя — рубрик в конспекте должно быть все четыре
+            if count > 0:
+                item["count"] = count
         else:
             item["author"] = _fun_author(nom.get("author"))
         out[key] = item
@@ -100,7 +109,8 @@ def build_session(item, extracted):
                     tag = "ux"
                 if not text:
                     continue
-                if tag not in ("ux", "dev", "discuss"):
+                tag = _TAG_ALIASES.get(tag, tag)
+                if tag not in TAGS:
                     tag = "ux"
                 items.append({"id": _item_id(date_iso, name, pname, idx, text),
                               "text": text, "tag": tag})
