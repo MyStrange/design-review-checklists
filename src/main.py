@@ -83,7 +83,15 @@ def _clean_fun(raw):
         if key == "filler_word":
             items = _clean_filler_items(nom)
             if items:
-                out[key] = {"items": items}
+                block = {"items": items}
+                try:
+                    total = int(nom.get("total") or 0)
+                except (TypeError, ValueError):
+                    total = 0
+                # общий счёт показываем, только если он больше тройки в списке
+                if total > sum(i.get("count", 0) for i in items):
+                    block["total"] = total
+                out[key] = block
             continue
         text = (nom.get("text") or "").strip()
         if not text:
@@ -93,6 +101,11 @@ def _clean_fun(raw):
         item = {"text": " ".join(text.split()) if key == "smart_comment"
                         else _shorten(text, 120)}
         item["author"] = _fun_author(nom.get("author"))
+        if key == "weird_word":
+            # фраза, в которой слово прозвучало, — мелкой строкой в карточке
+            ctx = _shorten(nom.get("context") or "", 140)
+            if ctx:
+                item["context"] = ctx
         if key == "catch_phrase":
             # сколько раз фраза прозвучала за встречу — идёт рядом с автором;
             # счётчик необязателен: без него рубрика просто покажется без числа
@@ -135,7 +148,7 @@ def _clean_filler_items(nom):
         seen.add(text.lower())
         items.append({"text": text, "count": count} if count > 0 else {"text": text})
     items.sort(key=lambda x: x.get("count", 0), reverse=True)
-    return items[:5]
+    return items[:3]
 
 
 def build_session(item, extracted):

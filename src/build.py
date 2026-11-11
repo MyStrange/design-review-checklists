@@ -66,6 +66,8 @@ h1 { font-size: 60px; font-weight: 600; color: #1a1a1a; letter-spacing: -0.02em;
 .fun-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .fun-word { font-size: 14px; font-weight: 600; color: #1a1a1a; }
 .fun-num { font-size: 12px; color: #a7b0bd; white-space: nowrap; }
+.fun-total { font-size: 12px; color: #a7b0bd; margin-top: auto; padding-top: 14px; }
+.fun-context { font-size: 12px; color: #a7b0bd; line-height: 1.4; margin-top: 8px; }
 .fun-meta { font-size: 12px; color: #a7b0bd; margin-top: auto; padding-top: 14px; }
 .card-date { font-size: 12px; font-weight: 600; color: #999; margin: 22px 0 8px 2px; }
 .card-date:first-child { margin-top: 0; }
@@ -207,7 +209,7 @@ const FUN_KINDS = [
   ['weird_word',    '🙃', 'Странное слово'],
   ['catch_phrase',  '🔁', 'Частая фраза'],
   ['smart_comment', '🧠', 'Умный комментарий'],
-  ['filler_word',   '💬', 'Топ-5 паразитов'],
+  ['filler_word',   '💬', 'Топ-3 паразитов'],
 ];
 function funHTML(fun){
   if(!fun) return '';
@@ -217,10 +219,13 @@ function funHTML(fun){
     // паразиты — это список топ-5, у остальных рубрик одна строка
     if(n.items && n.items.length){
       const rows = n.items.map(it=>`<div class="fun-row"><span class="fun-word">${esc(it.text)}</span>${it.count?`<span class="fun-num">${it.count} ${plural(it.count,'раз','раза','раз')}</span>`:''}</div>`).join('');
+      // внизу — сколько паразитов прозвучало всего, включая те, что не в тройке
+      const total = n.total ? `<div class="fun-total">${n.total} ${plural(n.total,'слово-паразит','слова-паразита','слов-паразитов')} за встречу</div>` : '';
       return `<div class="fun-card">
         <div class="fun-icon">${ico}</div>
         <div class="fun-label">${label}</div>
         <div class="fun-list">${rows}</div>
+        ${total}
       </div>`;
     }
     if(!n.text) return '';
@@ -235,6 +240,7 @@ function funHTML(fun){
       <div class="fun-icon">${ico}</div>
       <div class="fun-label">${label}</div>
       <div class="fun-text ${size}">${esc(n.text)}</div>
+      ${n.context ? `<div class="fun-context">«${esc(n.context)}»</div>` : ''}
       ${meta ? `<div class="fun-meta">${meta}</div>` : ''}
     </div>`;
   }).filter(Boolean);
