@@ -63,6 +63,15 @@ def _fun_author(raw_author):
     return config.short_name(author)[:40]
 
 
+def _shorten(text, limit):
+    """Обрезает по границе слова — чтобы цитата не обрывалась на полуслове."""
+    text = " ".join((text or "").split())
+    if len(text) <= limit:
+        return text
+    cut = text[:limit].rsplit(" ", 1)[0].rstrip(" ,;:—-")
+    return (cut or text[:limit].rstrip()) + "…"
+
+
 def _clean_fun(raw):
     """Шуточные номинации встречи: оставляем только заполненные и подрезаем длину.
     Имя автора приводим к короткому — чтобы совпадало с остальной страницей."""
@@ -74,9 +83,13 @@ def _clean_fun(raw):
         text = (nom.get("text") or "").strip()
         if not text:
             continue
-        item = {"text": text[:160], "note": (nom.get("note") or "").strip()[:160]}
-        if key == "filler_word":
-            # у паразита автора нет принципиально — важно общее число за встречу
+        # умной мысли нужно место, слову или фразе хватает немного
+        item = {"text": _shorten(text, 300 if key == "smart_comment" else 120)}
+        if key != "filler_word":
+            item["author"] = _fun_author(nom.get("author"))
+        if key in ("filler_word", "catch_phrase"):
+            # у паразита автора нет принципиально — важно общее число за встречу,
+            # у частой фразы число идёт в дополнение к автору
             try:
                 count = int(nom.get("count") or 0)
             except (TypeError, ValueError):
@@ -85,8 +98,6 @@ def _clean_fun(raw):
             # выкидывать её нельзя — рубрик в конспекте должно быть все четыре
             if count > 0:
                 item["count"] = count
-        else:
-            item["author"] = _fun_author(nom.get("author"))
         out[key] = item
     return out
 
@@ -138,8 +149,12 @@ def process(item, data):
     return session
 
 
-def run_refill_fun():
+def run_refill_fun(force=False):
     """Добирает недостающие рубрики по уже разобранным встречам.
+
+    С force=True рубрики пересобираются заново даже там, где они уже есть —
+    нужно, когда поменялись правила: например, умный комментарий теперь
+    чистится от слов-паразитов и дописывается до законченной мысли.
 
     Расшифровки в data не хранятся, поэтому берём письма тех встреч, где рубрик
     меньше четырёх, и спрашиваем модель только про недостающие. Чек-листы,
@@ -153,7 +168,7 @@ def run_refill_fun():
     cutoff = (datetime.utcnow() - timedelta(days=config.SEARCH_SINCE_DAYS)).strftime("%Y-%m-%d")
     targets, too_old = {}, 0
     for s in data["sessions"]:
-        if not s.get("uid") or not llm.missing_fun(s.get("fun")):
+        if not s.get("uid") or (not force and not llm.missing_fun(s.get("fun"))):
             continue
         if (s.get("date") or "") < cutoff:
             too_old += 1
@@ -165,7 +180,7 @@ def run_refill_fun():
     if not targets:
         print("Добирать нечего: у всех свежих встреч по четыре рубрики.")
         return
-    print("Встреч с неполным блоком рубрик: %d" % len(targets))
+    print("Встреч в работе: %d%s" % (len(targets), " (пересобираем все рубрики)" if force else ""))
 
     # письма целевых встреч снова считаются «новыми», всё остальное пропускаем
     skip = {str(u) for u in data["processed_uids"]} - set(targets)
@@ -178,18 +193,21 @@ def run_refill_fun():
         if not item:
             print("  %s — письма в ящике нет, пропускаем" % label.strip())
             continue
-        was = sorted(session.get("fun") or {})
-        fun = llm.complete_fun(item["transcript"], session.get("fun") or {})
+        before = len(session.get("fun") or {})
+        # при force спрашиваем все четыре заново, прежние ответы не подставляем
+        fun = llm.complete_fun(item["transcript"], {} if force else session.get("fun") or {})
         session["fun"] = _clean_fun(fun)
-        changed += 1
-        print("  %s — рубрик было %d, стало %d" % (label.strip(), len(was), len(session["fun"])))
+        after = len(session["fun"])
+        if force or after > before:
+            changed += 1
+        print("  %s — рубрик было %d, стало %d" % (label.strip(), before, after))
 
     if not changed:
-        print("Ничего добрать не удалось.")
+        print("Ничего добрать не удалось — данные не трогаем.")
         return
     save_data(data)
     build.build_site(data)
-    print("Обновлено встреч: %d" % changed)
+    print("Встреч, где рубрик стало больше: %d" % changed)
 
 
 def run_fetch():
@@ -257,6 +275,8 @@ def main():
                     help="разослать отложенные на утро уведомления")
     ap.add_argument("--refill-fun", action="store_true",
                     help="добрать недостающие рубрики по уже разобранным встречам")
+    ap.add_argument("--force", action="store_true",
+                    help="с --refill-fun: пересобрать рубрики заново, даже если они есть")
     args = ap.parse_args()
 
     if args.build_only:
@@ -267,7 +287,7 @@ def main():
         run_send_pending()
         return
     if args.refill_fun:
-        run_refill_fun()
+        run_refill_fun(force=args.force)
         return
     if args.file:
         if not args.date:

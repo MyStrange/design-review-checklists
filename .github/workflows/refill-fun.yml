@@ -5,7 +5,12 @@ name: Добрать рубрики встреч
 # Чек-листы, отметки и уведомления не трогаются — меняется только блок fun.
 # Встречи старше SEARCH_SINCE_DAYS пропускаются: их писем в ящике уже не найти.
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Пересобрать рубрики заново, даже там, где они уже есть"
+        type: boolean
+        default: false
   # ручной разовый запуск: изменить trigger/refill-fun.txt и запушить
   push:
     paths:
@@ -33,7 +38,7 @@ jobs:
           YANDEX_USER: ${{ secrets.YANDEX_USER }}
           YANDEX_APP_PASSWORD: ${{ secrets.YANDEX_APP_PASSWORD }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: python -m src.main --refill-fun
+        run: python -m src.main --refill-fun ${{ inputs.force && '--force' || '' }}
 
       - name: Закоммитить изменения
         run: |

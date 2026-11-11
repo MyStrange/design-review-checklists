@@ -53,9 +53,15 @@ h1 { font-size: 60px; font-weight: 600; color: #1a1a1a; letter-spacing: -0.02em;
 .st-ux { background: #199AF0; }
 .st-second { background: #7E8BA3; }
 .st-multi { background: #2BA39A; }
-/* Блок номинаций использует стили обычных карточек; строки некликабельны. */
-.fun .task { cursor: default; }
-.fun .task:hover { background: none; }
+/* Номинации встречи: четыре вертикальные карточки в ряд. */
+.fun-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 22px; }
+.fun-card { background: #fff; border: 1px solid #E8ECF1; border-radius: 20px; padding: 20px 18px; display: flex; flex-direction: column; }
+.fun-icon { font-size: 44px; line-height: 1; margin-bottom: 16px; }
+.fun-label { font-size: 10px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #a7b0bd; margin-bottom: 8px; }
+.fun-text { font-size: 15px; font-weight: 600; color: #1a1a1a; line-height: 1.35; }
+/* умная мысль длиннее слова или фразы — ей свой кегль, чтобы ряд не разъезжался */
+.fun-text.long { font-size: 13px; font-weight: 500; line-height: 1.4; }
+.fun-meta { font-size: 12px; color: #a7b0bd; margin-top: auto; padding-top: 14px; }
 .card-date { font-size: 12px; font-weight: 600; color: #999; margin: 22px 0 8px 2px; }
 .card-date:first-child { margin-top: 0; }
 .project { background: #fff; border: 1px solid #E8ECF1; border-radius: 20px; margin-bottom: 14px; overflow: hidden; }
@@ -89,6 +95,9 @@ h1 { font-size: 60px; font-weight: 600; color: #1a1a1a; letter-spacing: -0.02em;
 .placeholder { color: #bbb; text-align: center; padding: 80px 20px; }
 .reset-btn { position: fixed; bottom: 24px; right: 24px; background: #fff; border: 1px solid #E2E7EC; color: #999; font-family: 'Golos Text', sans-serif; font-size: 12px; padding: 8px 14px; border-radius: 8px; cursor: pointer; transition: all .15s; }
 .reset-btn:hover { color: #555; border-color: #bbb; }
+@media (max-width: 1000px) {
+  .fun-grid { grid-template-columns: repeat(2, 1fr); }
+}
 @media (max-width: 640px) {
   body { flex-direction: column; }
   .sidebar { width: 100%; position: static; padding: 12px 0; border-radius: 0; }
@@ -98,6 +107,7 @@ h1 { font-size: 60px; font-weight: 600; color: #1a1a1a; letter-spacing: -0.02em;
   .nav-item { flex-shrink: 0; border-left: none; border-bottom: 2px solid transparent; padding: 6px 12px; border-radius: 8px; }
   .nav-item.active { background: #fff; }
   .main { margin: 8px; padding: 24px 16px 80px; min-height: 0; border-radius: 16px; }
+  .fun-grid { grid-template-columns: 1fr; }
   h1 { font-size: 38px; }
 }
 """
@@ -189,26 +199,29 @@ function renderMain(){
 }
 // Шуточные номинации встречи. Показываем только то, что реально нашлось.
 const FUN_KINDS = [
-  ['weird_word',    '🙃', 'Самое странное слово'],
-  ['catch_phrase',  '🔁', 'Самая частая фраза'],
-  ['smart_comment', '🧠', 'Самый умный комментарий'],
-  ['filler_word',   '💬', 'Самое частое слово-паразит'],
+  ['weird_word',    '🙃', 'Странное слово'],
+  ['catch_phrase',  '🔁', 'Частая фраза'],
+  ['smart_comment', '🧠', 'Умный комментарий'],
+  ['filler_word',   '💬', 'Частое слово-паразит'],
 ];
 function funHTML(fun){
   if(!fun) return '';
-  const rows = FUN_KINDS.map(([k,ico,label])=>{
+  const cards = FUN_KINDS.map(([k,ico,label])=>{
     const n = fun[k];
     if(!n || !n.text) return '';
-    // вторая строка: что за номинация, кто сказал или сколько раз прозвучало
-    const bits = [label];
+    // подпись внизу карточки: кто сказал и сколько раз это прозвучало за встречу
+    const bits = [];
     if(n.author) bits.push(esc(n.author));
     if(n.count) bits.push(n.count+' '+plural(n.count,'раз','раза','раз')+' за встречу');
-    const note = n.note ? `<div class="project-name">${esc(n.note)}</div>` : '';
-    return `<div class="task"><div>${ico}</div>
-      <div><div class="author">${esc(n.text)}</div>
-      <div class="project-name">${bits.join(' \u00B7 ')}</div>${note}</div></div>`;
+    const meta = bits.join(' \u00B7 ');
+    return `<div class="fun-card">
+      <div class="fun-icon">${ico}</div>
+      <div class="fun-label">${label}</div>
+      <div class="fun-text ${n.text.length > 90 ? 'long' : ''}">${esc(n.text)}</div>
+      ${meta ? `<div class="fun-meta">${meta}</div>` : ''}
+    </div>`;
   }).filter(Boolean);
-  return rows.length ? `<div class="project fun">${rows.join('')}</div>` : '';
+  return cards.length ? `<div class="fun-grid">${cards.join('')}</div>` : '';
 }
 function render(){ renderNav(); renderMain(); }
 function setMode(m){ if(mode===m) return; mode=m;
