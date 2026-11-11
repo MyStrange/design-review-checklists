@@ -20,15 +20,18 @@ from . import config
 RU_MONTHS = ["января", "февраля", "марта", "апреля", "мая", "июня",
              "июля", "августа", "сентября", "октября", "ноября", "декабря"]
 
-# Если конспект пришёл позже этого часа по МСК — не шлём вечером, а откладываем
-# на 10:00 следующего дня (и шлём уже со звуком и тегами).
-LATE_AFTER_HOUR_MSK = 18
+# Рабочее окно по МСК, когда уведомление уходит сразу. Всё, что вне его —
+# и поздний вечер, и ночь, и раннее утро — откладывается в очередь, её разбирает
+# утренний прогон (morning-send.yml, 10:05 МСК). Окно именно диапазон, а не «позже
+# 18»: прогон может запуститься ночью, если GitHub отложил запланированный cron.
+QUIET_UNTIL_HOUR_MSK = 10
+QUIET_FROM_HOUR_MSK = 18
 
 
-def is_late_now():
-    """Сейчас позже LATE_AFTER_HOUR_MSK по Москве? (GitHub Actions по UTC, МСК = UTC+3.)"""
+def is_quiet_now():
+    """Сейчас вне рабочего окна по Москве? (GitHub Actions по UTC, МСК = UTC+3.)"""
     msk = datetime.utcnow() + timedelta(hours=3)
-    return msk.hour >= LATE_AFTER_HOUR_MSK
+    return msk.hour < QUIET_UNTIL_HOUR_MSK or msk.hour >= QUIET_FROM_HOUR_MSK
 
 
 def _http(url, payload=None, headers=None):
@@ -418,7 +421,7 @@ def notify_new_session(session, crown_note=None):
     send_text("\n".join(lines), kind="checklist")
 
 
-# ---------- Очередь отложенных уведомлений (для конспектов, пришедших поздно) ----------
+# ---------- Очередь отложенных уведомлений (для прогонов вне рабочего окна) ----------
 def enqueue_pending(data, session, crown_note=None):
     """Откладывает уведомление на утро (хранится прямо в data → коммитится)."""
     data.setdefault("pending_notifications", []).append(

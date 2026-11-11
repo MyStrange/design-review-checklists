@@ -9,6 +9,7 @@
 import argparse
 import hashlib
 import json
+import os
 import sys
 from datetime import datetime, timedelta
 
@@ -289,13 +290,13 @@ def run_fetch():
     # корона ПОСЛЕ — если сменилась, добавим классную строку в последнее уведомление
     after_counts, genders = notify.standings(data["sessions"])
     crown_note = notify.crown_change_note(before_counts, after_counts, genders)
-    late = notify.is_late_now()
+    quiet = notify.is_quiet_now()
     for i, s in enumerate(new_sessions):
         note = crown_note if i == len(new_sessions) - 1 else None
-        if late:
-            # после 18:00 — не дёргаем вечером, откладываем на 10:00 следующего дня
+        if quiet:
+            # вне 10:00–18:00 МСК не дёргаем людей — кладём в очередь до 10:05
             notify.enqueue_pending(data, s, note)
-            print("    поздно (после 18:00 МСК) — уведомление отложено на завтра 10:00")
+            print("    нерабочее время (вне 10:00–18:00 МСК) — уведомление отложено до 10:05")
         else:
             notify.notify_new_session(s, crown_note=note)
     save_data(data)  # сохраняем после возможной постановки в очередь
@@ -303,7 +304,13 @@ def run_fetch():
 
 
 def run_send_pending():
-    """Утренний прогон: разослать отложенные с вечера уведомления (со звуком и тегами)."""
+    """Утренний прогон: разослать отложенные уведомления (со звуком и тегами)."""
+    # Этот cron GitHub тоже может задержать. Если запланированный прогон доехал
+    # уже в нерабочее время — очередь не трогаем, её заберёт следующее утро.
+    # Ручной запуск (workflow_dispatch / триггерный файл) шлёт всегда.
+    if os.environ.get("GITHUB_EVENT_NAME") == "schedule" and notify.is_quiet_now():
+        print("Нерабочее время (запуск приехал с задержкой) — очередь ждёт до 10:05.")
+        return
     data = load_data()
     n = notify.send_pending(data)
     if n:
