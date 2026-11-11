@@ -98,6 +98,15 @@ def _clean_fun(raw):
             # выкидывать её нельзя — рубрик в конспекте должно быть все четыре
             if count > 0:
                 item["count"] = count
+        if key == "filler_word":
+            try:
+                peak = int(nom.get("max_in_sentence") or 0)
+            except (TypeError, ValueError):
+                peak = 0
+            # рекорд в одном предложении показываем, только если он сам по себе
+            # что-то говорит: одного раза на фразу никто не заметит
+            if peak > 1:
+                item["max_in_sentence"] = peak
         out[key] = item
     return out
 

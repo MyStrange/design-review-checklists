@@ -58,5 +58,12 @@ jobs:
             echo "Изменений нет."
           else
             git commit -m "Обновление чек-листов ($(date -u +%Y-%m-%d_%H:%M)Z)"
-            git push
+            # пока шёл прогон, в main могли запушить — подбираем чужие коммиты
+            # и пробуем ещё раз, иначе работа прогона пропадёт
+            for i in 1 2 3; do
+              git push && break
+              echo "Пуш отклонён, подтягиваю main и пробую снова ($i)"
+              git pull --rebase origin main || exit 1
+              sleep 3
+            done
           fi
