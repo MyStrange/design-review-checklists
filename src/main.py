@@ -80,35 +80,53 @@ def _clean_fun(raw):
         nom = (raw or {}).get(key) or {}
         if not isinstance(nom, dict):
             continue
+        if key == "filler_word":
+            items = _clean_filler_items(nom)
+            if items:
+                out[key] = {"items": items}
+            continue
         text = (nom.get("text") or "").strip()
         if not text:
             continue
-        # умной мысли нужно место, слову или фразе хватает немного
-        item = {"text": _shorten(text, 300 if key == "smart_comment" else 120)}
-        if key != "filler_word":
-            item["author"] = _fun_author(nom.get("author"))
-        if key in ("filler_word", "catch_phrase"):
-            # у паразита автора нет принципиально — важно общее число за встречу,
-            # у частой фразы число идёт в дополнение к автору
+        # умную мысль не режем совсем: обрезанная цитата бессмысленна,
+        # на странице она просто печатается кеглем помельче
+        item = {"text": " ".join(text.split()) if key == "smart_comment"
+                        else _shorten(text, 120)}
+        item["author"] = _fun_author(nom.get("author"))
+        if key == "catch_phrase":
+            # сколько раз фраза прозвучала за встречу — идёт рядом с автором;
+            # счётчик необязателен: без него рубрика просто покажется без числа
             try:
                 count = int(nom.get("count") or 0)
             except (TypeError, ValueError):
                 count = 0
-            # счётчик необязателен: без него номинация просто показывается без числа,
-            # выкидывать её нельзя — рубрик в конспекте должно быть все четыре
             if count > 0:
                 item["count"] = count
-        if key == "filler_word":
-            try:
-                peak = int(nom.get("max_in_sentence") or 0)
-            except (TypeError, ValueError):
-                peak = 0
-            # рекорд в одном предложении показываем, только если он сам по себе
-            # что-то говорит: одного раза на фразу никто не заметит
-            if peak > 1:
-                item["max_in_sentence"] = peak
         out[key] = item
     return out
+
+
+def _clean_filler_items(nom):
+    """Топ-5 паразитов: пары слово-число, по убыванию, без пустых и дублей."""
+    raw_items = nom.get("items")
+    if not isinstance(raw_items, list):
+        # запас на старый формат: один паразит в полях text/count
+        raw_items = [nom] if (nom.get("text") or "").strip() else []
+    items, seen = [], set()
+    for it in raw_items:
+        if not isinstance(it, dict):
+            continue
+        text = " ".join((it.get("text") or "").split())[:40]
+        if not text or text.lower() in seen:
+            continue
+        try:
+            count = int(it.get("count") or 0)
+        except (TypeError, ValueError):
+            count = 0
+        seen.add(text.lower())
+        items.append({"text": text, "count": count} if count > 0 else {"text": text})
+    items.sort(key=lambda x: x.get("count", 0), reverse=True)
+    return items[:5]
 
 
 def build_session(item, extracted):
@@ -202,12 +220,20 @@ def run_refill_fun(force=False):
         if not item:
             print("  %s — письма в ящике нет, пропускаем" % label.strip())
             continue
-        before = len(session.get("fun") or {})
+        current = session.get("fun") or {}
+        before = len(current)
         # при force спрашиваем все четыре заново, прежние ответы не подставляем
-        fun = llm.complete_fun(item["transcript"], {} if force else session.get("fun") or {})
+        fun = llm.complete_fun(item["transcript"], {} if force else current)
+        if force:
+            # модель могла не ответить по части рубрик — старое оставляем как было,
+            # иначе один таймаут Gemini стирает уже собранный блок
+            merged = dict(current)
+            merged.update({k: v for k, v in fun.items()
+                           if isinstance(v, dict) and (v.get("text") or "").strip()})
+            fun = merged
         session["fun"] = _clean_fun(fun)
         after = len(session["fun"])
-        if force or after > before:
+        if session["fun"] != current:
             changed += 1
         print("  %s — рубрик было %d, стало %d" % (label.strip(), before, after))
 

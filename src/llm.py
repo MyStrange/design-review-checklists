@@ -34,15 +34,24 @@ _NOMINATION_COUNTED = {
     "required": ["text", "count"],
 }
 
-# Слово-паразит: автора нет, зато есть рекорд — сколько раз подряд в одной фразе.
+# Слова-паразиты: не один, а топ-5 с числом повторов у каждого. Автора нет —
+# считаем по всей встрече, у всех участников вместе.
 _NOMINATION_FILLER = {
     "type": "OBJECT",
     "properties": {
-        "text": {"type": "STRING"},
-        "count": {"type": "INTEGER"},             # всего за встречу
-        "max_in_sentence": {"type": "INTEGER"},   # больше всего в одном предложении
+        "items": {
+            "type": "ARRAY",
+            "items": {
+                "type": "OBJECT",
+                "properties": {
+                    "text": {"type": "STRING"},    # само слово-паразит
+                    "count": {"type": "INTEGER"},  # сколько раз за встречу
+                },
+                "required": ["text", "count"],
+            },
+        },
     },
-    "required": ["text", "count", "max_in_sentence"],
+    "required": ["items"],
 }
 
 # Четыре номинации встречи — ровно столько должно быть в каждом конспекте.
@@ -77,17 +86,17 @@ FUN_RULES = {
   Мысль должна быть дописана до конца: читатель, который не был на встрече,
   понимает, о чём речь и что предлагается. Обрывок на полуслове и фраза,
   из которой непонятно, про что она, не годятся — если в реплике есть
-  «чтобы они были одинаково», допиши, одинаково ЧТО. Уложись примерно в 200
-  знаков: это не пересказ обсуждения, а одна мысль целиком.
+  «чтобы они были одинаково», допиши, одинаково ЧТО. Длина не ограничена:
+  лучше на пару слов длиннее, чем мысль, оборванная на полуслове. Это одна
+  мысль целиком, а не пересказ всего обсуждения.
   Если выдающейся реплики нет — возьми самое полезное замечание встречи;""",
-    "filler_word": """- filler_word — САМОЕ ЧАСТОЕ СЛОВО-ПАРАЗИТ встречи: как раз
-  «как бы», «типа», «ну», «вот», «короче» и подобное. Посчитай, сколько раз оно
-  прозвучало за всю встречу У ВСЕХ УЧАСТНИКОВ ВМЕСТЕ, и положи число в count.
-  Автора НЕ указывай — мы не выясняем, кто говорил его чаще. Отдельно найди
-  предложение встречи, где это слово встретилось больше всего раз, и положи
-  это число в max_in_sentence — сколько раз оно уместилось в одну фразу.
-  Если везде по одному разу, поставь 1. Даже если паразитов мало, выбери самый
-  частый из тех, что встретились;""",
+    "filler_word": """- filler_word — ТОП-5 СЛОВ-ПАРАЗИТОВ встречи: пять самых
+  частых пустых связок — «как бы», «типа», «ну», «вот», «короче», «в смысле»,
+  «на самом деле», «это самое» и подобные. Для каждого посчитай, сколько раз
+  оно прозвучало за всю встречу У ВСЕХ УЧАСТНИКОВ ВМЕСТЕ, и положи пары
+  слово-число в items, от самого частого к самому редкому. Авторов НЕ указывай:
+  мы не выясняем, кто говорил чаще. Если разных паразитов набралось меньше
+  пяти — перечисли столько, сколько реально было, но хотя бы один;""",
 }
 
 FUN_FIELDS = """Для каждой номинации заполни:
@@ -96,10 +105,9 @@ FUN_FIELDS = """Для каждой номинации заполни:
   «Аня». Не пиши роли и обезличенные подписи — «Ведущий», «Модератор»,
   «Участник» и т.п. запрещены: читателю непонятно, кто это. Не понял, кто
   именно сказал, или это роль, а не имя — оставь author пустым;
-- count — для filler_word и catch_phrase: сколько раз слово или фраза
-  прозвучали за встречу у всех участников вместе;
-- max_in_sentence — только для filler_word: рекорд одного предложения, сколько
-  раз слово прозвучало в самой насыщенной фразе встречи.
+- count — для catch_phrase: сколько раз фраза прозвучала за встречу у всех
+  участников вместе. У filler_word вместо text и author заполняется items —
+  список из пяти пар «слово + сколько раз за встречу».
 
 Пояснений и подписей не пиши: на странице показываются только само слово или
 фраза и автор. Не объясняй, что номинация значит и почему она смешная.
@@ -219,7 +227,7 @@ _FUN_TITLES = {
     "weird_word": "самое странное слово",
     "catch_phrase": "самая частая фраза",
     "smart_comment": "самый умный комментарий",
-    "filler_word": "самое частое слово-паразит",
+    "filler_word": "топ-5 слов-паразитов",
 }
 
 
@@ -236,7 +244,14 @@ def missing_fun(fun):
     missing = []
     for key in FUN_KEYS:
         nom = (fun or {}).get(key)
-        if not isinstance(nom, dict) or not (nom.get("text") or "").strip():
+        if not isinstance(nom, dict):
+            missing.append(key)
+        elif key == "filler_word":
+            # у паразитов вместо одного текста список топ-5
+            items = nom.get("items")
+            if not (isinstance(items, list) and items) and not (nom.get("text") or "").strip():
+                missing.append(key)
+        elif not (nom.get("text") or "").strip():
             missing.append(key)
     return missing
 
@@ -290,7 +305,12 @@ def _complete_fun(transcript, fun):
             break
         for key in missing:
             nom = patch.get(key)
-            if isinstance(nom, dict) and (nom.get("text") or "").strip():
+            if not isinstance(nom, dict):
+                continue
+            if key == "filler_word":
+                if nom.get("items"):
+                    fun[key] = nom
+            elif (nom.get("text") or "").strip():
                 fun[key] = nom
     still = missing_fun(fun)
     if still:
@@ -319,7 +339,7 @@ def _gemini(prompt, schema, transcript):
     body = json.dumps(payload).encode("utf-8")
 
     last_err = None
-    for attempt in range(3):
+    for attempt in range(4):
         req = urllib.request.Request(
             url, data=body, headers={"Content-Type": "application/json"}
         )
@@ -331,13 +351,15 @@ def _gemini(prompt, schema, transcript):
         except urllib.error.HTTPError as e:
             detail = e.read().decode("utf-8", "replace")
             last_err = "HTTP %s: %s" % (e.code, detail)
-            if e.code in (429, 500, 503):  # перегрузка/лимит — подождём и повторим
-                time.sleep(5 * (attempt + 1))
+            if e.code in (429, 500, 503):
+                # бесплатный тир Gemini часто отвечает 429/503 — ждём подольше,
+                # иначе все три попытки сгорают внутри одного пика нагрузки
+                time.sleep(15 * (attempt + 1))
                 continue
             break
-        except Exception as e:  # сеть, парсинг и т.п.
+        except Exception as e:  # сеть, парсинг, таймаут чтения и т.п.
             last_err = str(e)
-            time.sleep(3)
+            time.sleep(10 * (attempt + 1))
             continue
 
     raise RuntimeError("Ошибка обращения к Gemini: %s" % last_err)

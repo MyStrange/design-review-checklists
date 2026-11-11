@@ -59,12 +59,13 @@ h1 { font-size: 60px; font-weight: 600; color: #1a1a1a; letter-spacing: -0.02em;
 .fun-icon { font-size: 44px; line-height: 1; margin-bottom: 16px; }
 .fun-label { font-size: 10px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #a7b0bd; margin-bottom: 8px; }
 .fun-text { font-size: 15px; font-weight: 600; color: #1a1a1a; line-height: 1.35; }
-/* умная мысль длиннее слова или фразы — ей свой кегль, чтобы ряд не разъезжался */
+/* умная мысль длиннее слова или фразы — ей свой кегль, чтобы влезала целиком */
 .fun-text.long { font-size: 13px; font-weight: 500; line-height: 1.45; }
-/* длинную мысль сворачиваем до шести строк, целиком — по кнопке */
-.fun-card.clamped .fun-text { display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; }
-.fun-more { align-self: flex-start; margin-top: 8px; padding: 0; border: none; background: none; font-family: inherit; font-size: 12px; font-weight: 500; color: #199AF0; cursor: pointer; }
-.fun-more:hover { color: #0f7fd0; }
+.fun-text.longer { font-size: 12px; font-weight: 500; line-height: 1.5; }
+.fun-list { display: flex; flex-direction: column; gap: 7px; }
+.fun-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.fun-word { font-size: 14px; font-weight: 600; color: #1a1a1a; }
+.fun-num { font-size: 12px; color: #a7b0bd; white-space: nowrap; }
 .fun-meta { font-size: 12px; color: #a7b0bd; margin-top: auto; padding-top: 14px; }
 .card-date { font-size: 12px; font-weight: 600; color: #999; margin: 22px 0 8px 2px; }
 .card-date:first-child { margin-top: 0; }
@@ -206,35 +207,38 @@ const FUN_KINDS = [
   ['weird_word',    '🙃', 'Странное слово'],
   ['catch_phrase',  '🔁', 'Частая фраза'],
   ['smart_comment', '🧠', 'Умный комментарий'],
-  ['filler_word',   '💬', 'Паразит'],
+  ['filler_word',   '💬', 'Топ-5 паразитов'],
 ];
 function funHTML(fun){
   if(!fun) return '';
   const cards = FUN_KINDS.map(([k,ico,label])=>{
     const n = fun[k];
-    if(!n || !n.text) return '';
+    if(!n) return '';
+    // паразиты — это список топ-5, у остальных рубрик одна строка
+    if(n.items && n.items.length){
+      const rows = n.items.map(it=>`<div class="fun-row"><span class="fun-word">${esc(it.text)}</span>${it.count?`<span class="fun-num">${it.count} ${plural(it.count,'раз','раза','раз')}</span>`:''}</div>`).join('');
+      return `<div class="fun-card">
+        <div class="fun-icon">${ico}</div>
+        <div class="fun-label">${label}</div>
+        <div class="fun-list">${rows}</div>
+      </div>`;
+    }
+    if(!n.text) return '';
     // подпись внизу карточки: кто сказал и сколько раз это прозвучало за встречу
     const bits = [];
     if(n.author) bits.push(esc(n.author));
     if(n.count) bits.push(n.count+' '+plural(n.count,'раз','раза','раз')+' за встречу');
-    if(n.max_in_sentence) bits.push('до '+n.max_in_sentence+' '+plural(n.max_in_sentence,'раза','раз','раз')+' в одной фразе');
     const meta = bits.join(' \u00B7 ');
-    // длинную мысль показываем мелче и сворачиваем, целиком — по кнопке
-    const long = n.text.length > 90, clamp = n.text.length > 150;
-    return `<div class="fun-card ${clamp ? 'clamped' : ''}">
+    // длинную мысль показываем целиком, просто мельче — ничего не прячем
+    const size = n.text.length > 220 ? 'longer' : (n.text.length > 90 ? 'long' : '');
+    return `<div class="fun-card">
       <div class="fun-icon">${ico}</div>
       <div class="fun-label">${label}</div>
-      <div class="fun-text ${long ? 'long' : ''}">${esc(n.text)}</div>
-      ${clamp ? '<button class="fun-more" onclick="toggleFun(this)">Показать целиком</button>' : ''}
+      <div class="fun-text ${size}">${esc(n.text)}</div>
       ${meta ? `<div class="fun-meta">${meta}</div>` : ''}
     </div>`;
   }).filter(Boolean);
   return cards.length ? `<div class="fun-grid">${cards.join('')}</div>` : '';
-}
-function toggleFun(btn){
-  const card = btn.closest('.fun-card');
-  const clamped = card.classList.toggle('clamped');
-  btn.textContent = clamped ? 'Показать целиком' : 'Свернуть';
 }
 function render(){ renderNav(); renderMain(); }
 function setMode(m){ if(mode===m) return; mode=m;
