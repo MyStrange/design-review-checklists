@@ -199,7 +199,7 @@ def _nomination_schema(key):
     return _NOMINATION_COUNTED if key == "filler_word" else _NOMINATION
 
 
-def _missing_fun(fun):
+def missing_fun(fun):
     """Номинации, которых не хватает: нет словаря или пустой text."""
     missing = []
     for key in FUN_KEYS:
@@ -226,10 +226,20 @@ def extract_checklist(transcript):
     return result
 
 
+def complete_fun(transcript, fun):
+    """Добирает недостающие номинации по уже разобранной встрече.
+
+    Чек-листы не трогаем — спрашиваем модель только про пустые рубрики.
+    """
+    if config.LLM_PROVIDER.lower() != "gemini":
+        raise ValueError("Неизвестный LLM-провайдер: %r" % config.LLM_PROVIDER)
+    return _complete_fun(transcript, dict(fun or {}))
+
+
 def _complete_fun(transcript, fun):
     """Добивает недостающие номинации повторными запросами (не больше двух)."""
     for _ in range(2):
-        missing = _missing_fun(fun)
+        missing = missing_fun(fun)
         if not missing:
             break
         prompt = (REPAIR_PROMPT
@@ -250,7 +260,7 @@ def _complete_fun(transcript, fun):
             nom = patch.get(key)
             if isinstance(nom, dict) and (nom.get("text") or "").strip():
                 fun[key] = nom
-    still = _missing_fun(fun)
+    still = missing_fun(fun)
     if still:
         print("    без номинаций осталось: %s" % ", ".join(still))
     return fun

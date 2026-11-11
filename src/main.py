@@ -10,7 +10,7 @@ import argparse
 import hashlib
 import json
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from . import build, config, fetch, llm, notify
 
@@ -138,6 +138,60 @@ def process(item, data):
     return session
 
 
+def run_refill_fun():
+    """Добирает недостающие рубрики по уже разобранным встречам.
+
+    Расшифровки в data не хранятся, поэтому берём письма тех встреч, где рубрик
+    меньше четырёх, и спрашиваем модель только про недостающие. Чек-листы,
+    отметки и уведомления не трогаем — меняется только блок fun.
+    Письма старше SEARCH_SINCE_DAYS в ящике уже не ищутся: такие встречи
+    пропускаем с понятным сообщением.
+    """
+    data = load_data()
+    # письма старше SEARCH_SINCE_DAYS в ящике уже не ищутся — такие встречи
+    # добрать нечем, в цель не берём
+    cutoff = (datetime.utcnow() - timedelta(days=config.SEARCH_SINCE_DAYS)).strftime("%Y-%m-%d")
+    targets, too_old = {}, 0
+    for s in data["sessions"]:
+        if not s.get("uid") or not llm.missing_fun(s.get("fun")):
+            continue
+        if (s.get("date") or "") < cutoff:
+            too_old += 1
+            continue
+        targets[str(s["uid"])] = s
+    if too_old:
+        print("Встреч старше %d дней без полного блока рубрик: %d — письма не достать, пропускаем"
+              % (config.SEARCH_SINCE_DAYS, too_old))
+    if not targets:
+        print("Добирать нечего: у всех свежих встреч по четыре рубрики.")
+        return
+    print("Встреч с неполным блоком рубрик: %d" % len(targets))
+
+    # письма целевых встреч снова считаются «новыми», всё остальное пропускаем
+    skip = {str(u) for u in data["processed_uids"]} - set(targets)
+    by_uid = {str(item["uid"]): item for item in fetch.fetch_new_reviews(skip)}
+
+    changed = 0
+    for uid, session in targets.items():
+        label = "%s %s" % (session.get("date") or "?", session.get("part") or "")
+        item = by_uid.get(uid)
+        if not item:
+            print("  %s — письма в ящике нет, пропускаем" % label.strip())
+            continue
+        was = sorted(session.get("fun") or {})
+        fun = llm.complete_fun(item["transcript"], session.get("fun") or {})
+        session["fun"] = _clean_fun(fun)
+        changed += 1
+        print("  %s — рубрик было %d, стало %d" % (label.strip(), len(was), len(session["fun"])))
+
+    if not changed:
+        print("Ничего добрать не удалось.")
+        return
+    save_data(data)
+    build.build_site(data)
+    print("Обновлено встреч: %d" % changed)
+
+
 def run_fetch():
     data = load_data()
     # корона ДО новых встреч — чтобы заметить, если лидер сменится
@@ -201,6 +255,8 @@ def main():
     ap.add_argument("--build-only", action="store_true", help="только пересобрать HTML")
     ap.add_argument("--send-pending", action="store_true",
                     help="разослать отложенные на утро уведомления")
+    ap.add_argument("--refill-fun", action="store_true",
+                    help="добрать недостающие рубрики по уже разобранным встречам")
     args = ap.parse_args()
 
     if args.build_only:
@@ -209,6 +265,9 @@ def main():
         return
     if args.send_pending:
         run_send_pending()
+        return
+    if args.refill_fun:
+        run_refill_fun()
         return
     if args.file:
         if not args.date:

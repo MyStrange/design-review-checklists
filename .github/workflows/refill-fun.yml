@@ -1,0 +1,48 @@
+name: Добрать рубрики встреч
+
+# Разовая починка: если у уже разобранной встречи рубрик меньше четырёх,
+# берём её письмо из ящика и спрашиваем модель ТОЛЬКО про недостающие.
+# Чек-листы, отметки и уведомления не трогаются — меняется только блок fun.
+# Встречи старше SEARCH_SINCE_DAYS пропускаются: их писем в ящике уже не найти.
+on:
+  workflow_dispatch: {}
+  # ручной разовый запуск: изменить trigger/refill-fun.txt и запушить
+  push:
+    paths:
+      - "trigger/refill-fun.txt"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync          # вместе с обычным прогоном почты, чтобы не толкаться за data
+  cancel-in-progress: false
+
+jobs:
+  refill:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Добрать недостающие рубрики
+        env:
+          YANDEX_USER: ${{ secrets.YANDEX_USER }}
+          YANDEX_APP_PASSWORD: ${{ secrets.YANDEX_APP_PASSWORD }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python -m src.main --refill-fun
+
+      - name: Закоммитить изменения
+        run: |
+          git config user.name "MyStrange"
+          git config user.email "18186386+MyStrange@users.noreply.github.com"
+          git add data/checklists.json docs/
+          if git diff --cached --quiet; then
+            echo "Изменений нет."
+          else
+            git commit -m "Добраны рубрики встреч ($(date -u +%Y-%m-%d_%H:%M)Z)"
+            git push
+          fi
