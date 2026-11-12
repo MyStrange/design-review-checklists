@@ -7,13 +7,14 @@
                                              # прогнать локальный .txt без почты (для теста)
 """
 import argparse
+import collections
 import hashlib
 import json
 import os
 import sys
 from datetime import datetime, timedelta
 
-from . import build, config, fetch, llm, notify
+from . import build, config, fetch, llm, notify, tagging
 
 WEEKDAYS = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"]
 
@@ -40,10 +41,7 @@ def weekday_label(date_iso):
 
 # Теги правок: к кому идти с пунктом. Совпадают с enum в схеме LLM и со
 # стилями .tag на странице — новый тег добавляется сразу в трёх местах.
-TAGS = ("ux", "dev", "product", "seo", "legal", "branding")
-# «discuss» — старое название продуктового тега, встречается в уже разобранных
-# встречах; на странице он и так показывается как «Продакт».
-_TAG_ALIASES = {"discuss": "product"}
+TAGS = ("ux", "dev", "product", "research", "seo", "legal", "branding")
 
 
 def _item_id(date_iso, designer, project, idx, text):
@@ -170,9 +168,11 @@ def build_session(item, extracted):
                     tag = "ux"
                 if not text:
                     continue
-                tag = _TAG_ALIASES.get(tag, tag)
-                if tag not in TAGS:
+                if tagging.normalize(tag) not in TAGS:
                     tag = "ux"
+                # нейросеть любит всё подряд помечать как "ux" — там, где в
+                # тексте прямо сказано, к кому идти, тег ставим правилами
+                tag = tagging.refine(text, tag)
                 items.append({"id": _item_id(date_iso, name, pname, idx, text),
                               "text": text, "tag": tag})
             projects.append({"name": pname, "items": items})
@@ -275,24 +275,69 @@ def run_refill_fun(force=False):
     print("Встреч, где рубрик стало больше: %d" % changed)
 
 
+def run_retag(dry_run=False):
+    """Переставляет теги по уже разобранным встречам.
+
+    Нужна, потому что с июня нейросеть помечала почти всё как "ux", и в старых
+    встречах бейджиков «Продакт», «Исследования», «Юрист» просто нет. Тексты
+    пунктов не трогаем — значит, id не меняются и галочки у людей на месте.
+    """
+    data = load_data()
+    moved = collections.Counter()
+    total = 0
+    for s in data["sessions"]:
+        for d in s.get("designers", []):
+            for p in d.get("projects", []):
+                for it in p.get("items", []):
+                    total += 1
+                    was = tagging.normalize(it.get("tag"))
+                    now = tagging.refine(it.get("text", ""), it.get("tag"))
+                    if now != was:
+                        moved[(was, now)] += 1
+                    if not dry_run:
+                        it["tag"] = now
+    print("Пунктов всего: %d, сменили тег: %d" % (total, sum(moved.values())))
+    for (was, now), n in moved.most_common():
+        print("  %-8s → %-9s %d" % (was, now, n))
+    after = collections.Counter()
+    for s in data["sessions"]:
+        for d in s.get("designers", []):
+            for p in d.get("projects", []):
+                for it in p.get("items", []):
+                    after[tagging.refine(it.get("text", ""), it.get("tag"))] += 1
+    print("Итог по тегам: %s" % dict(after.most_common()))
+    if dry_run:
+        print("Это прогон вхолостую — данные не тронуты.")
+        return
+    save_data(data)
+    build.build_site(data)
+    print("Готово: данные пересохранены, страница пересобрана.")
+
+
 def run_fetch():
     data = load_data()
-    # корона ДО новых встреч — чтобы заметить, если лидер сменится
-    before_counts, _ = notify.standings(data["sessions"])
     new_items = fetch.fetch_new_reviews(set(data["processed_uids"]))
     print("Новых писем-конспектов: %d" % len(new_items))
+    # Почта отдаёт письма новыми сверху. Разбираем и объявляем встречи по
+    # возрастанию даты: иначе рассказ разъезжается — сначала приходит встреча
+    # от 10-го, потом от 5-го, и смена короны выглядит как чудо.
+    new_items.sort(key=lambda it: ((it.get("date") or ""), it.get("part") or ""))
     new_sessions = []
     for item in new_items:
         print("  UID %s — %s" % (item["uid"], item["subject"]))
-        new_sessions.append(process(item, data))
+        # Корону считаем вокруг каждой встречи отдельно: строка про смену
+        # лидера должна висеть под той встречей, которая её и вызвала, а не
+        # под последней разобранной (так Костя потерял корону «из-за» показа
+        # Нади и Кариши, хотя ничью разбил показ Ани днём раньше).
+        before_counts, _ = notify.standings(data["sessions"])
+        session = process(item, data)
+        after_counts, genders = notify.standings(data["sessions"])
+        new_sessions.append(
+            (session, notify.crown_change_note(before_counts, after_counts, genders)))
     save_data(data)  # сразу фиксируем обработанные письма (чтобы не разобрать повторно)
     build.build_site(data)
-    # корона ПОСЛЕ — если сменилась, добавим классную строку в последнее уведомление
-    after_counts, genders = notify.standings(data["sessions"])
-    crown_note = notify.crown_change_note(before_counts, after_counts, genders)
     quiet = notify.is_quiet_now()
-    for i, s in enumerate(new_sessions):
-        note = crown_note if i == len(new_sessions) - 1 else None
+    for s, note in new_sessions:
         if quiet:
             # вне 10:00–18:00 МСК не дёргаем людей — кладём в очередь до 10:05
             notify.enqueue_pending(data, s, note)
@@ -344,6 +389,10 @@ def main():
     ap.add_argument("--build-only", action="store_true", help="только пересобрать HTML")
     ap.add_argument("--send-pending", action="store_true",
                     help="разослать отложенные на утро уведомления")
+    ap.add_argument("--retag", action="store_true",
+                    help="переставить теги по уже разобранным встречам (по правилам)")
+    ap.add_argument("--dry-run", action="store_true",
+                    help="с --retag: только показать, что изменится")
     ap.add_argument("--refill-fun", action="store_true",
                     help="добрать недостающие рубрики по уже разобранным встречам")
     ap.add_argument("--force", action="store_true",
@@ -356,6 +405,9 @@ def main():
         return
     if args.send_pending:
         run_send_pending()
+        return
+    if args.retag:
+        run_retag(dry_run=args.dry_run)
         return
     if args.refill_fun:
         run_refill_fun(force=args.force)
