@@ -8,8 +8,9 @@ import email
 import imaplib
 import re
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from email.header import decode_header
+from email.utils import parsedate_to_datetime
 
 from . import config
 
@@ -84,6 +85,25 @@ def _headers(M, uid_b):
     return _decode_header(msg.get("From")), _decode_header(msg.get("Subject"))
 
 
+def received_msk(msg):
+    """Когда письмо пришло, по Москве — строкой «2026-11-13 02:15».
+
+    Конспект приезжает то через 15 минут после встречи, то глубокой ночью.
+    Чтобы подбирать расписание по факту, а не на ощупь, время прихода пишем
+    в лог и сохраняем вместе со встречей.
+    """
+    raw = msg.get("Date")
+    if not raw:
+        return ""
+    try:
+        dt = parsedate_to_datetime(raw)
+    except Exception:
+        return ""
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return (dt + timedelta(hours=3)).strftime("%Y-%m-%d %H:%M")
+
+
 def _connect():
     M = imaplib.IMAP4_SSL(config.IMAP_HOST, config.IMAP_PORT)
     M.login(config.YANDEX_USER, config.YANDEX_APP_PASSWORD)
@@ -115,6 +135,7 @@ def _load_item(M, uid_b):
         "subject": subj,
         "date": date_iso,
         "part": part,
+        "received": received_msk(msg),
         "transcript": transcript,
     }
 

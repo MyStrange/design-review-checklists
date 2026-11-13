@@ -21,6 +21,9 @@ SEARCH_SINCE_DAYS = int(os.environ.get("SEARCH_SINCE_DAYS", "45"))
 LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "gemini")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+# Запасная модель: у неё свой лимит и своя очередь, поэтому она часто
+# отвечает, когда основная перегружена (503) или выбрала суточную квоту.
+GEMINI_MODEL_FALLBACK = os.environ.get("GEMINI_MODEL_FALLBACK", "gemini-2.0-flash")
 
 # --- Пути / страница ---
 ROOT = pathlib.Path(__file__).resolve().parent.parent

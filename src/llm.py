@@ -360,13 +360,32 @@ def _complete_fun(transcript, fun):
     return fun
 
 
-def _gemini(prompt, schema, transcript):
-    if not config.GEMINI_API_KEY:
-        raise RuntimeError("Не задан GEMINI_API_KEY")
+# Пик нагрузки на бесплатной модели ("high demand", HTTP 503) длится минуты.
+# Прежние четыре попытки с паузами 15/30/45 с сгорали внутри одного пика — так
+# 12 ноября встреча осталась неразобранной. Ждём дольше и пробуем чаще.
+RETRY_PAUSES = (20, 40, 60, 90, 120, 180)
 
+
+def _short(err):
+    """Простыню ошибки от Gemini — в одну строку для лога."""
+    return (str(err) or "").replace("\n", " ")[:140]
+
+
+def _models():
+    """Основная модель и запасная. У запасной свой лимит и своя очередь, поэтому
+    она часто отвечает, когда основная перегружена или выбрала суточную квоту."""
+    out = [config.GEMINI_MODEL]
+    fallback = config.GEMINI_MODEL_FALLBACK
+    if fallback and fallback not in out:
+        out.append(fallback)
+    return out
+
+
+def _gemini_once(model, prompt, schema, transcript):
+    """Один запрос к конкретной модели — с ретраями внутри (503/429/5xx)."""
     url = (
         "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s"
-        % (config.GEMINI_MODEL, config.GEMINI_API_KEY)
+        % (model, config.GEMINI_API_KEY)
     )
     payload = {
         "contents": [
@@ -381,7 +400,7 @@ def _gemini(prompt, schema, transcript):
     body = json.dumps(payload).encode("utf-8")
 
     last_err = None
-    for attempt in range(4):
+    for attempt in range(len(RETRY_PAUSES) + 1):
         req = urllib.request.Request(
             url, data=body, headers={"Content-Type": "application/json"}
         )
@@ -396,15 +415,30 @@ def _gemini(prompt, schema, transcript):
             if e.code == 429 and "per day" in detail:
                 # суточная квота кончилась: ретраи не помогут, ждать нужно часы
                 raise QuotaExceeded(_quota_note(detail))
-            if e.code in (429, 500, 503):
-                # бесплатный тир Gemini часто отвечает 429/503 — ждём подольше,
-                # иначе все три попытки сгорают внутри одного пика нагрузки
-                time.sleep(15 * (attempt + 1))
-                continue
-            break
+            if e.code not in (429, 500, 502, 503):
+                break
         except Exception as e:  # сеть, парсинг, таймаут чтения и т.п.
             last_err = str(e)
-            time.sleep(10 * (attempt + 1))
-            continue
+        if attempt >= len(RETRY_PAUSES):
+            break
+        pause = RETRY_PAUSES[attempt]
+        print("    %s не ответила (%s) — повтор через %d с" % (model, _short(last_err), pause))
+        time.sleep(pause)
 
-    raise RuntimeError("Ошибка обращения к Gemini: %s" % last_err)
+    raise RuntimeError("Ошибка обращения к Gemini (%s): %s" % (model, last_err))
+
+
+def _gemini(prompt, schema, transcript):
+    """Спрашиваем основную модель, не вышло — запасную. Исключение бросаем
+    только если не ответила ни одна (и то самое первое, оно понятнее)."""
+    if not config.GEMINI_API_KEY:
+        raise RuntimeError("Не задан GEMINI_API_KEY")
+    first_err = None
+    for model in _models():
+        try:
+            return _gemini_once(model, prompt, schema, transcript)
+        except RuntimeError as e:  # QuotaExceeded — тоже RuntimeError
+            print("    модель %s не справилась: %s" % (model, _short(e)))
+            if first_err is None:
+                first_err = e
+    raise first_err

@@ -2,6 +2,8 @@
 
 Использование:
   python -m src.main                         # обычный прогон (почта → страница)
+  python -m src.main --watch 240             # то же, но ждать письмо 4 часа,
+                                             # перепроверяя почту каждые 10 минут
   python -m src.main --build-only            # только пересобрать HTML из data
   python -m src.main --file samples/x.txt --date 2026-06-02 --part ч.1
                                              # прогнать локальный .txt без почты (для теста)
@@ -12,6 +14,7 @@ import hashlib
 import json
 import os
 import sys
+import time
 from datetime import datetime, timedelta
 
 from . import build, config, fetch, llm, notify, tagging
@@ -183,6 +186,7 @@ def build_session(item, extracted):
         "weekday": weekday_label(date_iso),
         "part": item.get("part") or "",
         "subject": item.get("subject") or "",
+        "received": item.get("received") or "",
         "designers": designers,
         "fun": _clean_fun(extracted.get("fun")),
     }
@@ -315,6 +319,10 @@ def run_retag(dry_run=False):
 
 
 def run_fetch():
+    """Один проход: забрать письма, разобрать, собрать страницу, уведомить.
+
+    Возвращает (сколько встреч разобрано, сколько писем не поддалось).
+    """
     data = load_data()
     new_items = fetch.fetch_new_reviews(set(data["processed_uids"]))
     print("Новых писем-конспектов: %d" % len(new_items))
@@ -322,30 +330,85 @@ def run_fetch():
     # возрастанию даты: иначе рассказ разъезжается — сначала приходит встреча
     # от 10-го, потом от 5-го, и смена короны выглядит как чудо.
     new_items.sort(key=lambda it: ((it.get("date") or ""), it.get("part") or ""))
-    new_sessions = []
+    new_sessions, failed = [], 0
     for item in new_items:
         print("  UID %s — %s" % (item["uid"], item["subject"]))
+        if item.get("received"):
+            print("    письмо пришло %s МСК" % item["received"])
         # Корону считаем вокруг каждой встречи отдельно: строка про смену
         # лидера должна висеть под той встречей, которая её и вызвала, а не
         # под последней разобранной (так Костя потерял корону «из-за» показа
         # Нади и Кариши, хотя ничью разбил показ Ани днём раньше).
         before_counts, _ = notify.standings(data["sessions"])
-        session = process(item, data)
+        try:
+            session = process(item, data)
+        except Exception as e:
+            # Модель бывает перегружена (503) или выбирает суточную квоту. Такое
+            # письмо остаётся необработанным — его возьмёт следующий проход, а
+            # уже разобранное в этом прогоне не теряем: раньше одно исключение
+            # уносило всю работу прогона (12 ноября так пропала встреча).
+            failed += 1
+            print("    разобрать не удалось: %s" % e)
+            print("    письмо остаётся новым — попробуем в следующий проход")
+            continue
         after_counts, genders = notify.standings(data["sessions"])
         new_sessions.append(
             (session, notify.crown_change_note(before_counts, after_counts, genders)))
     save_data(data)  # сразу фиксируем обработанные письма (чтобы не разобрать повторно)
     build.build_site(data)
+
     quiet = notify.is_quiet_now()
+    # Отложенное старше свежего — рассылаем его первым. Любой прогон, попавший в
+    # рабочее окно, разбирает очередь: утренний прогон GitHub может задержать на
+    # часы и привезти уже в тишину, тогда очередь висела бы сутками.
+    if not quiet:
+        n = notify.send_pending(data)
+        if n:
+            print("Разослано отложенных уведомлений: %d" % n)
     for s, note in new_sessions:
         if quiet:
-            # вне 10:00–18:00 МСК не дёргаем людей — кладём в очередь до 10:05
+            # вне будней 10:00–18:00 МСК не дёргаем людей — кладём в очередь
             notify.enqueue_pending(data, s, note)
-            print("    нерабочее время (вне 10:00–18:00 МСК) — уведомление отложено до 10:05")
+            print("    нерабочее время (вне будней 10:00–18:00 МСК) — уведомление отложено")
         else:
             notify.notify_new_session(s, crown_note=note)
     save_data(data)  # сохраняем после возможной постановки в очередь
-    print("Готово.")
+    if failed:
+        print("Готово, но писем не разобрано: %d (следующий проход попробует снова)" % failed)
+    else:
+        print("Готово.")
+    return len(new_sessions), failed
+
+
+def run_watch(minutes, every_minutes=10):
+    """Держит прогон в воздухе и сам перепроверяет почту.
+
+    Запланированные запуски GitHub приезжают поодиночке и с опозданием на часы,
+    а пропущенные события он не копит — поэтому плотная сетка cron надёжности не
+    даёт: 12 ноября из 32 запланированных проверок случилась одна, и уже ночью.
+    Так что один прогон сам смотрит почту весь нужный отрезок и заканчивает,
+    как только встреча разобрана.
+    """
+    deadline = time.monotonic() + minutes * 60
+    attempt, failed = 0, 0
+    while True:
+        attempt += 1
+        print("=== проверка %d, %s UTC ===" % (attempt, datetime.utcnow().strftime("%H:%M")))
+        try:
+            done, failed = run_fetch()
+        except Exception as e:  # обрыв почты, нехватка секретов и т.п.
+            done, failed = 0, 1
+            print("Проход не удался: %s" % e)
+        if done:
+            print("Разобрано встреч: %d — дальше ждать нечего." % done)
+            return 0
+        left = deadline - time.monotonic()
+        if left <= every_minutes * 60:
+            print("Отведённые %d мин вышли, нового конспекта так и нет." % minutes)
+            return failed
+        print("Конспекта пока нет. Следующая проверка через %d мин (в запасе ещё %d мин)."
+              % (every_minutes, left // 60))
+        time.sleep(every_minutes * 60)
 
 
 def run_send_pending():
@@ -387,6 +450,9 @@ def main():
     ap.add_argument("--date", help="дата ревью YYYY-MM-DD (для --file)")
     ap.add_argument("--part", default="", help="метка части, напр. ч.1 (для --file)")
     ap.add_argument("--build-only", action="store_true", help="только пересобрать HTML")
+    ap.add_argument("--watch", type=int, default=0, metavar="МИНУТ",
+                    help="не выходить, а перепроверять почту столько минут "
+                         "(0 — один проход); нужен, потому что cron у GitHub опаздывает")
     ap.add_argument("--send-pending", action="store_true",
                     help="разослать отложенные на утро уведомления")
     ap.add_argument("--retag", action="store_true",
@@ -418,7 +484,14 @@ def main():
             sys.exit(1)
         run_local(args.file, args.date, args.part)
         return
-    run_fetch()
+    # Прогон красный, если письмо осталось неразобранным: данные и страница уже
+    # сохранены (шаг коммита в workflow стоит с if: always()), но ошибка видна.
+    if args.watch:
+        failed = run_watch(args.watch)
+    else:
+        _, failed = run_fetch()
+    if failed:
+        sys.exit(1)
 
 
 if __name__ == "__main__":
