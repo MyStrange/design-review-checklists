@@ -365,6 +365,12 @@ def _complete_fun(transcript, fun):
 # 12 ноября встреча осталась неразобранной. Ждём дольше и пробуем чаще.
 RETRY_PAUSES = (20, 40, 60, 90, 120, 180)
 
+# Сколько ждём ответа на один запрос. Было 120 с, и этого не хватало: 13 ноября
+# разбор встречи прошёл только с седьмой попытки, шесть первых отвалились по
+# таймауту («The read operation timed out») — модель просто думала дольше над
+# длинной расшифровкой. Ретраи тут не помощь, а потерянные минуты.
+REQUEST_TIMEOUT = 240
+
 
 def _short(err):
     """Простыню ошибки от Gemini — в одну строку для лога."""
@@ -405,7 +411,7 @@ def _gemini_once(model, prompt, schema, transcript):
             url, data=body, headers={"Content-Type": "application/json"}
         )
         try:
-            with urllib.request.urlopen(req, timeout=120) as resp:
+            with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
                 obj = json.loads(resp.read().decode("utf-8"))
             text = obj["candidates"][0]["content"]["parts"][0]["text"]
             return json.loads(text)
