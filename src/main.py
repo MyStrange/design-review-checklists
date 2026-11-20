@@ -90,8 +90,12 @@ def _clean_fun(raw):
                     total = int(nom.get("total") or 0)
                 except (TypeError, ValueError):
                     total = 0
-                # общий счёт показываем, только если он больше тройки в списке
-                if total > sum(i.get("count", 0) for i in items):
+                # общий счёт показываем всегда: это и есть «сколько паразитов
+                # за встречу». Нижняя граница — сумма видимой тройки, чтобы
+                # общее не оказалось меньше уже показанного, если модель
+                # недосчитала total или вернула только тройку.
+                total = max(total, sum(i.get("count", 0) for i in items))
+                if total > 0:
                     block["total"] = total
                 out[key] = block
             continue
